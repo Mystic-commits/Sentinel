@@ -1,0 +1,54 @@
+# General
+.DS_Store
+Thumbs.db
+*~
+*.log
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+env/
+venv/
+lib/
+bin/
+dist/
+build/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node.js / Web
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+idontwantthis
+.next/
+out/
+build/
+.pnp
+.pnp.js
+
+# Rust / Tauri
+target/
+**/*.rs.bk
+
+# Sensitive
+secrets.json
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

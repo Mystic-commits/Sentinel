@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "sentinel-api"
+version = "0.1.0"
+description = "FastAPI server for Sentinel"
+authors = ["Mystic"]
+readme = "README.md"
+packages = [{include = "sentinel_api"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+sentinel-core = {path = "../sentinel-core", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

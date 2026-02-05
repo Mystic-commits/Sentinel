@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "sentinel-cli"
+version = "0.1.0"
+description = "CLI interaction for Sentinel"
+authors = ["Mystic"]
+readme = "README.md"
+packages = [{include = "sentinel_cli"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+typer = {extras = ["all"], version = "^0.9.0"}
+rich = "^13.7.0"
+sentinel-core = {path = "../sentinel-core", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

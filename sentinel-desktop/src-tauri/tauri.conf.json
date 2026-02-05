@@ -1,0 +1,46 @@
+{
+    "build": {
+        "beforeDevCommand": "pnpm --filter sentinel-web dev",
+        "beforeBuildCommand": "pnpm --filter sentinel-web build",
+        "devPath": "http://localhost:3000",
+        "distDir": "../sentinel-web/out",
+        "withGlobalTauri": true
+    },
+    "package": {
+        "productName": "Sentinel",
+        "version": "0.1.0"
+    },
+    "tauri": {
+        "allowlist": {
+            "all": false,
+            "shell": {
+                "all": false,
+                "open": true
+            }
+        },
+        "bundle": {
+            "active": true,
+            "targets": "all",
+            "identifier": "com.sentinel.dev",
+            "icon": [
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.icns",
+                "icons/icon.ico"
+            ]
+        },
+        "security": {
+            "csp": null
+        },
+        "windows": [
+            {
+                "fullscreen": false,
+                "resizable": true,
+                "title": "Sentinel",
+                "width": 1200,
+                "height": 800
+            }
+        ]
+    }
+}
