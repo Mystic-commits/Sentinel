@@ -3,16 +3,18 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const navLinks = [
-    { label: 'Features', href: '#features' },
-    { label: 'How It Works', href: '#demo' },
-    { label: 'Download', href: '#download' },
-    { label: 'Docs', href: '#docs' },
+    { label: 'Features', href: '/features' },
+    { label: 'How It Works', href: '/how-it-works' },
+    { label: 'Download', href: '/download' },
+    { label: 'Docs', href: '/docs' },
 ];
 
 export default function Navbar() {
     const [scrolled, setScrolled] = useState(false);
+    const pathname = usePathname();
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -49,15 +51,21 @@ export default function Navbar() {
 
                 {/* Center Nav Links - Absolute Centering */}
                 <div className="hidden md:flex items-center gap-8 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                    {navLinks.map((link) => (
-                        <a
-                            key={link.label}
-                            href={link.href}
-                            className="text-[15px] font-medium text-txt-muted hover:text-txt-primary transition-colors py-1"
-                        >
-                            {link.label}
-                        </a>
-                    ))}
+                    {navLinks.map((link) => {
+                        const isActive = pathname === link.href;
+                        return (
+                            <Link
+                                key={link.label}
+                                href={link.href}
+                                className={`
+                                    text-[15px] font-medium transition-colors py-1
+                                    ${isActive ? 'text-white' : 'text-txt-muted hover:text-txt-primary'}
+                                `}
+                            >
+                                {link.label}
+                            </Link>
+                        );
+                    })}
                 </div>
 
                 {/* Right actions */}
@@ -71,16 +79,19 @@ export default function Navbar() {
                         GitHub
                     </a>
                     <Link
-                        href="/dashboard"
+                        href="/download"
                         className="
                             h-10 px-5 text-[14px] font-semibold bg-white text-black rounded-xl
-                            flex items-center shadow-[0_0_20px_rgba(255,255,255,0.1)]
+                            flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]
                             hover:bg-neutral-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]
                             hover:-translate-y-0.5
                             transition-all duration-200
                         "
                     >
-                        Open Dashboard
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Download
                     </Link>
                 </div>
             </div>

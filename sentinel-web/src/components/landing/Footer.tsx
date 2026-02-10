@@ -4,15 +4,16 @@ const footerSections = [
     {
         title: 'Product',
         links: [
-            { label: 'Dashboard', href: '/dashboard' },
-            { label: 'Downloads', href: '#download' },
+            { label: 'Features', href: '/features' },
+            { label: 'How It Works', href: '/how-it-works' },
+            { label: 'Downloads', href: '/download' },
             { label: 'Changelog', href: 'https://github.com/Mystic-commits/Sentinel/releases', external: true },
         ],
     },
     {
         title: 'Resources',
         links: [
-            { label: 'Documentation', href: '#docs' },
+            { label: 'Documentation', href: '/docs' },
             { label: 'API Reference', href: 'http://localhost:8000/docs', external: true },
             { label: 'GitHub', href: 'https://github.com/Mystic-commits/Sentinel', external: true },
         ],
