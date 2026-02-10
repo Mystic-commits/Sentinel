@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useStore } from './useStore';
-import { LogEntry, TaskState } from '@/lib/types/task';
+import { LogEntry, TaskState, TaskResult } from '@/lib/types/task';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/events';
 const RECONNECT_DELAY = 3000; // 3 seconds
@@ -251,7 +251,7 @@ export function useWebSocket() {
                     updateTask(task_id, {
                         state: 'completed' as TaskState,
                         progress: 100,
-                        result: data,
+                        result: data as unknown as TaskResult,
                     });
                     addLog(task_id, createLog(msg || 'Task completed successfully', 'success', timestamp));
                 }

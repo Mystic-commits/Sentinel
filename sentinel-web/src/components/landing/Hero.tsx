@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 export default function Hero() {
     return (
-        <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
             {/* Background effects */}
             <div className="absolute inset-0">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.04)_0%,_transparent_50%)]" />
@@ -24,21 +24,6 @@ export default function Hero() {
             </div>
 
             <div className="relative max-w-4xl mx-auto px-6 text-center">
-                {/* Badge */}
-                <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35 }}
-                    className="mb-8"
-                >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface-2 border border-edge">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-[13px] text-txt-secondary">
-                            Local-first AI file organizer
-                        </span>
-                    </div>
-                </motion.div>
-
                 {/* Heading */}
                 <motion.h1
                     initial={{ opacity: 0, y: 16 }}

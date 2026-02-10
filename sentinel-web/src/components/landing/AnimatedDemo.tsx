@@ -77,7 +77,7 @@ export default function AnimatedDemo() {
     }, []);
 
     return (
-        <section className="py-24 px-6 relative">
+        <section id="demo" className="py-24 px-6 relative">
             {/* Subtle gradient divider */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[60%] h-px bg-gradient-to-r from-transparent via-edge to-transparent" />
 
