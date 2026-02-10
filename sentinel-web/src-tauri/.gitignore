@@ -1,0 +1,11 @@
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# Icons (will be regenerated)
+src-tauri/icons/*.png
+src-tauri/icons/*.icns
+src-tauri/icons/*.ico
+
+# Keep icon README
+!src-tauri/icons/README.md

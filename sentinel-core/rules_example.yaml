@@ -1,0 +1,28 @@
+rules:
+  - name: PDF Invoices
+    category: Documents/Invoices
+    priority: 10
+    conditions:
+      extension: .pdf
+      name_contains: invoice
+
+  - name: Screenshots
+    category: Images/Screenshots
+    priority: 20
+    conditions:
+      extension: .png
+      name_contains: Screen Shot
+
+  - name: Large Installers
+    category: Installers/Large
+    priority: 30
+    conditions:
+      extension: .dmg
+      min_size_bytes: 104857600 # 100MB
+
+  - name: Project Proposals
+    category: Documents/Proposals
+    priority: 15
+    conditions:
+      extension: .docx
+      regex_pattern: "^Proposal.*202[0-9]"

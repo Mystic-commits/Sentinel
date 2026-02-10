@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { inter, jetbrainsMono } from "./fonts";
 import "@/styles/globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
-    title: "Sentinel",
-    description: "AI Organizing Agent",
+    title: "Sentinel — AI File Organization",
+    description: "Local-first AI agent for safe, intelligent file organization",
 };
 
 export default function RootLayout({
@@ -15,8 +13,10 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en">
-            <body className={`${inter.className} bg-slate-950 text-slate-100`}>{children}</body>
+        <html lang="en" className="dark">
+            <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
+                {children}
+            </body>
         </html>
     );
 }

@@ -1,0 +1,117 @@
+{
+    "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+    "build": {
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build && npm run export",
+        "devPath": "http://localhost:3000",
+        "distDir": "../out",
+        "withGlobalTauri": true
+    },
+    "package": {
+        "productName": "Sentinel",
+        "version": "0.1.0"
+    },
+    "tauri": {
+        "allowlist": {
+            "all": false,
+            "shell": {
+                "all": false,
+                "execute": true,
+                "sidecar": false,
+                "open": true
+            },
+            "path": {
+                "all": true
+            },
+            "fs": {
+                "all": false,
+                "readFile": true,
+                "writeFile": true,
+                "readDir": true,
+                "createDir": true,
+                "exists": true,
+                "scope": [
+                    "$HOME/Downloads/**",
+                    "$HOME/Desktop/**",
+                    "$HOME/Documents/**"
+                ]
+            },
+            "http": {
+                "all": false,
+                "request": true,
+                "scope": [
+                    "http://localhost:8000/**",
+                    "ws://localhost:8000/**"
+                ]
+            },
+            "dialog": {
+                "all": false,
+                "ask": true,
+                "confirm": true,
+                "message": true,
+                "open": true,
+                "save": true
+            },
+            "notification": {
+                "all": true
+            }
+        },
+        "bundle": {
+            "active": true,
+            "targets": "all",
+            "identifier": "com.sentinel.app",
+            "icon": [
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.icns",
+                "icons/icon.ico"
+            ],
+            "resources": [],
+            "externalBin": [],
+            "copyright": "Copyright © 2026 Sentinel",
+            "category": "Utility",
+            "shortDescription": "AI-powered file organization",
+            "longDescription": "Sentinel is a local-first AI agent that safely cleans and organizes your computer with intelligent file management.",
+            "macOS": {
+                "frameworks": [],
+                "minimumSystemVersion": "10.13",
+                "exceptionDomain": "",
+                "signingIdentity": null,
+                "entitlements": null
+            },
+            "windows": {
+                "certificateThumbprint": null,
+                "digestAlgorithm": "sha256",
+                "timestampUrl": "",
+                "wix": {
+                    "language": "en-US"
+                }
+            }
+        },
+        "security": {
+            "csp": "default-src 'self'; connect-src 'self' http://localhost:8000 ws://localhost:8000; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+        },
+        "windows": [
+            {
+                "title": "Sentinel - AI File Organizer",
+                "width": 1400,
+                "height": 900,
+                "resizable": true,
+                "fullscreen": false,
+                "decorations": true,
+                "transparent": false,
+                "alwaysOnTop": false,
+                "center": true,
+                "minWidth": 1024,
+                "minHeight": 768,
+                "skipTaskbar": false
+            }
+        ],
+        "systemTray": {
+            "iconPath": "icons/tray-icon.png",
+            "iconAsTemplate": true,
+            "menuOnLeftClick": false
+        }
+    }
+}

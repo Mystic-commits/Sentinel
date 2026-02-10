@@ -1,0 +1,13 @@
+{
+    "identifier": "default",
+    "description": "Default capability for the app",
+    "windows": [
+        "main"
+    ],
+    "permissions": [
+        "core:default",
+        "fs:default",
+        "http:default",
+        "shell:open"
+    ]
+}

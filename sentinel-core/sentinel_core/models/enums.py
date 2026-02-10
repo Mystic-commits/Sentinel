@@ -24,3 +24,5 @@ class TaskStatus(str, Enum):
     EXECUTING = "executing"
     COMPLETED = "completed"
     FAILED = "failed"
+
+TaskState = TaskStatus
