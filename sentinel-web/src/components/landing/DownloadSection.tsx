@@ -10,6 +10,7 @@ const platforms = [
         fileName: 'Sentinel_0.1.0_x64.dmg',
         downloadUrl: '/downloads/Sentinel_0.1.0_x64.dmg',
         buttonLabel: 'Download .dmg',
+        comingSoon: true,
         icon: (
             <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
@@ -22,6 +23,7 @@ const platforms = [
         fileName: 'Sentinel_0.1.0_x64.msi',
         downloadUrl: '/downloads/Sentinel_0.1.0_x64.msi',
         buttonLabel: 'Download .msi',
+        comingSoon: true,
         icon: (
             <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm7 .25l10 .15V21l-10-1.91V13.25z" />
@@ -86,14 +88,28 @@ export default function DownloadSection() {
                                 <div className="w-14 h-14 rounded-xl bg-surface-2 border border-edge flex items-center justify-center text-txt-muted group-hover:text-txt-primary group-hover:border-edge-hover transition-all duration-200 mb-5">
                                     {platform.icon}
                                 </div>
-                                <h3 className="text-[18px] font-semibold text-txt-primary mb-2">
+                                <h3 className="text-[18px] font-semibold text-txt-primary mb-2 flex items-center gap-2">
                                     {platform.name}
+                                    {/* @ts-ignore */}
+                                    {platform.comingSoon && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                            SOON
+                                        </span>
+                                    )}
                                 </h3>
                                 <p className="text-[14px] text-txt-secondary leading-relaxed mb-6 flex-1">
                                     {platform.description}
                                 </p>
 
-                                {platform.installCommand ? (
+                                {/* @ts-ignore */}
+                                {platform.comingSoon ? (
+                                    <button
+                                        disabled
+                                        className="w-full h-10 px-4 text-[14px] font-medium bg-surface-0 text-txt-muted border border-edge rounded-lg cursor-not-allowed opacity-60 flex items-center justify-center gap-2"
+                                    >
+                                        Coming Soon
+                                    </button>
+                                ) : platform.installCommand ? (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-surface-0 border border-edge font-mono text-[13px] text-txt-secondary">
                                             <span className="text-emerald-400">❯</span>

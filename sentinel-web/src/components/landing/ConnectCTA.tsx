@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 export default function ConnectCTA() {
     return (
-        <section className="pt-0 pb-32 px-6 relative overflow-hidden">
+        <section className="pt-24 pb-32 px-6 relative overflow-hidden">
             {/* Background Glow */}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface-0/50 pointer-events-none" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
