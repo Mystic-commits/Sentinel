@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 export default function Hero() {
     return (
-        <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+        <section id="hero" className="relative min-h-[85vh] flex items-center justify-center overflow-hidden pt-32 pb-20">
             {/* Background effects */}
             <div className="absolute inset-0">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.04)_0%,_transparent_50%)]" />
