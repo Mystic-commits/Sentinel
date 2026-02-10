@@ -10,5 +10,5 @@ export { default as DownloadSection } from './DownloadSection';
 export { default as DocsSection } from './DocsSection';
 export { default as InstallSection } from './InstallSection';
 export { default as Footer } from './Footer';
-export { default as HomeBento } from './HomeBento';
+
 export { default as ConnectCTA } from './ConnectCTA';
