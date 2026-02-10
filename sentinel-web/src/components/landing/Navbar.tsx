@@ -68,31 +68,9 @@ export default function Navbar() {
                     })}
                 </div>
 
-                {/* Right actions */}
-                <div className="flex items-center gap-4 shrink-0">
-                    <a
-                        href="https://github.com/Mystic-commits/Sentinel"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden sm:flex items-center gap-2 text-[14px] text-txt-muted hover:text-txt-primary transition-colors"
-                    >
-                        GitHub
-                    </a>
-                    <Link
-                        href="/download"
-                        className="
-                            h-10 px-5 text-[14px] font-semibold bg-white text-black rounded-xl
-                            flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]
-                            hover:bg-neutral-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]
-                            hover:-translate-y-0.5
-                            transition-all duration-200
-                        "
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        Download
-                    </Link>
+                {/* Right actions - REMOVED as per user request */}
+                <div className="flex items-center gap-4 shrink-0 w-9">
+                    {/* Spacer to balance the logo on the left for absolute centering of nav links, or just empty */}
                 </div>
             </div>
         </motion.nav>
