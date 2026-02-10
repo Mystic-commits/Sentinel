@@ -30,57 +30,12 @@ export function useWebSocket() {
 
     const { updateTask, addLog, setConnected } = useStore();
 
-    const connect = useCallback(() => {
-        // Don't reconnect if already connected
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-            return;
-        }
-
-        setConnectionState('connecting');
-        console.log('🔌 Connecting to WebSocket...');
-
-        const ws = new WebSocket(WS_URL);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-            console.log('✅ WebSocket connected');
-            setConnectionState('connected');
-            setConnected(true);
-            reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
-        };
-
-        ws.onclose = (event) => {
-            console.log(`🔌 WebSocket disconnected (code: ${event.code}, reason: ${event.reason})`);
-            setConnectionState('disconnected');
-            setConnected(false);
-
-            // Attempt reconnection
-            if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
-                reconnectAttemptsRef.current++;
-                console.log(`🔄 Reconnecting in ${RECONNECT_DELAY}ms... (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
-
-                reconnectTimeoutRef.current = setTimeout(() => {
-                    connect();
-                }, RECONNECT_DELAY);
-            } else {
-                console.error('❌ Max reconnection attempts reached. Please reload the page.');
-            }
-        };
-
-        ws.onerror = (error) => {
-            console.error('❌ WebSocket error:', error);
-            setConnected(false);
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const message: WebSocketMessage = JSON.parse(event.data);
-                handleMessage(message);
-            } catch (error) {
-                console.error('Failed to parse WebSocket message:', error);
-            }
-        };
-    }, [setConnected]);
+    const createLog = (message: string, level: LogEntry['level'], timestamp: string): LogEntry => ({
+        id: crypto.randomUUID(),
+        message,
+        level,
+        timestamp: timestamp || new Date().toISOString(),
+    });
 
     const handleMessage = useCallback((message: WebSocketMessage) => {
         const { event_type, task_id, message: msg, timestamp, data } = message;
@@ -270,12 +225,57 @@ export function useWebSocket() {
         }
     }, [updateTask, addLog]);
 
-    const createLog = (message: string, level: LogEntry['level'], timestamp: string): LogEntry => ({
-        id: crypto.randomUUID(),
-        message,
-        level,
-        timestamp: timestamp || new Date().toISOString(),
-    });
+    const connect = useCallback(() => {
+        // Don't reconnect if already connected
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            return;
+        }
+
+        setConnectionState('connecting');
+        console.log('🔌 Connecting to WebSocket...');
+
+        const ws = new WebSocket(WS_URL);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+            console.log('✅ WebSocket connected');
+            setConnectionState('connected');
+            setConnected(true);
+            reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
+        };
+
+        ws.onclose = (event) => {
+            console.log(`🔌 WebSocket disconnected (code: ${event.code}, reason: ${event.reason})`);
+            setConnectionState('disconnected');
+            setConnected(false);
+
+            // Attempt reconnection
+            if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttemptsRef.current++;
+                console.log(`🔄 Reconnecting in ${RECONNECT_DELAY}ms... (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
+
+                reconnectTimeoutRef.current = setTimeout(() => {
+                    connect();
+                }, RECONNECT_DELAY);
+            } else {
+                console.error('❌ Max reconnection attempts reached. Please reload the page.');
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('❌ WebSocket error:', error);
+            setConnected(false);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const message: WebSocketMessage = JSON.parse(event.data);
+                handleMessage(message);
+            } catch (error) {
+                console.error('Failed to parse WebSocket message:', error);
+            }
+        };
+    }, [setConnected, handleMessage]);
 
     useEffect(() => {
         connect();
