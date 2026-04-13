@@ -1,3 +1,12 @@
+[project]
+name = "sentinel-api"
+version = "0.1.0"
+description = "FastAPI server for Sentinel"
+authors = [
+    {name = "Mystic"}
+]
+requires-python = ">=3.11"
+
 [tool.poetry]
 name = "sentinel-api"
 version = "0.1.0"

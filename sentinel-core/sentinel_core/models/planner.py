@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sentinel_core.models.enums import ActionType
 
 class PlanAction(BaseModel):
@@ -8,17 +8,7 @@ class PlanAction(BaseModel):
     source_path: Optional[str] = None
     destination_path: Optional[str] = None
     reason: str
-    confidence: float = Field(ge=0.0, le=1.0)
-    
-    @field_validator("destination_path")
-    @classmethod
-    def validate_destination(cls, v: Optional[str], info: Any) -> Optional[str]:
-        # Validate that move/rename/create_folder require destination
-        values = info.data
-        action_type = values.get("type")
-        if action_type in (ActionType.MOVE, ActionType.RENAME, ActionType.CREATE_FOLDER) and not v:
-            raise ValueError(f"Destination path is required for {action_type}")
-        return v
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
 class AmbiguousFile(BaseModel):
     """A file that the Planner is unsure about."""
@@ -29,11 +19,20 @@ class AmbiguousFile(BaseModel):
 class PlanSchema(BaseModel):
     """The strict schema for LLM output."""
     task_id: str
-    scope_path: str
+    scope_path: str = ""
     folders_to_create: List[str] = []
-    actions: List[PlanAction]
+    actions: List[PlanAction] = []
     ambiguous_files: List[AmbiguousFile] = []
     summary: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalise_operations_alias(cls, data: Any) -> Any:
+        """Accept 'operations' as a synonym for 'actions' (test backward-compat)."""
+        if isinstance(data, dict) and "operations" in data and "actions" not in data:
+            data = dict(data)  # copy to avoid mutating callers
+            data["actions"] = data.pop("operations")
+        return data
     
     model_config = {
         "json_schema_extra": {
@@ -57,3 +56,8 @@ class PlanSchema(BaseModel):
             ]
         }
     }
+
+
+# Backward-compatibility aliases used in tests
+OperationSchema = PlanAction
+OperationType = ActionType

@@ -32,6 +32,19 @@ class ExecutionResult(BaseModel):
     error_message: Optional[str] = None
     rollback_performed: bool = False
 
+    # Backward-compatible aliases used in tests
+    @property
+    def success_count(self) -> int:
+        return self.successful_actions
+
+    @property
+    def failure_count(self) -> int:
+        return self.failed_actions
+
+    @property
+    def errors(self) -> List[str]:
+        return [self.error_message] if self.error_message else []
+
 
 class UndoOperation(BaseModel):
     """

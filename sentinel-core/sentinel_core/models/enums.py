@@ -12,6 +12,7 @@ class FileType(str, Enum):
 
 class ActionType(str, Enum):
     MOVE = "move"
+    COPY = "copy"
     RENAME = "rename"
     DELETE = "delete"
     CREATE_FOLDER = "create_folder"

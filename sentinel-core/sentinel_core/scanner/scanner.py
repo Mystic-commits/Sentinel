@@ -103,6 +103,8 @@ class Scanner:
         ext = path.suffix.lower()
         if ext in self.text_extensions:
             return FileType.DOCUMENT # Broadly code/text is document for organization
+        if ext in self.pdf_extensions:
+            return FileType.DOCUMENT # PDFs are documents
         if ext in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff'}:
             return FileType.IMAGE
         if ext in {'.mp4', '.mov', '.avi', '.mkv', '.webm'}:

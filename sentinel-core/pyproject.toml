@@ -1,9 +1,17 @@
+[project]
+name = "sentinel-core"
+version = "0.1.0"
+description = "Core logic engine for Sentinel"
+authors = [
+    {name = "Mystic"}
+]
+requires-python = ">=3.11"
+
 [tool.poetry]
 name = "sentinel-core"
 version = "0.1.0"
 description = "Core logic engine for Sentinel"
 authors = ["Mystic"]
-readme = "README.md"
 packages = [{include = "sentinel_core"}]
 
 [tool.poetry.dependencies]

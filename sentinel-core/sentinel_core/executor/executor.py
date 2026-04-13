@@ -18,6 +18,15 @@ from sentinel_core.models.logging import ExecutionLogEntry
 from sentinel_core.models.enums import ActionType
 from sentinel_core.executor.log_writer import LogWriter
 
+# Re-export Executor class so tests can do:
+#   from sentinel_core.executor.executor import Executor
+# This import is deferred to avoid circular imports (class_wrapper imports this module)
+def __getattr__(name: str):
+    if name == "Executor":
+        from sentinel_core.executor.class_wrapper import Executor as _Executor
+        return _Executor
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 def execute_plan(
     plan: PlanSchema,
@@ -129,6 +138,8 @@ def execute_plan(
                 # Execute the appropriate operation
                 if action.type == ActionType.MOVE:
                     _move_file(action.source_path, action.destination_path)
+                elif action.type == ActionType.COPY:
+                    _copy_file(action.source_path, action.destination_path)
                 elif action.type == ActionType.RENAME:
                     _rename_file(action.source_path, action.destination_path)
                 elif action.type == ActionType.DELETE:
@@ -157,7 +168,11 @@ def execute_plan(
                     
             except Exception as e:
                 failed_actions += 1
-                error_message = f"Failed {action.type.value} operation on {action.source_path}: {str(e)}"
+                err = f"Failed {action.type.value} operation on {action.source_path}: {str(e)}"
+                if error_message:
+                    error_message += f"; {err}"
+                else:
+                    error_message = err
                 
                 if logger:
                     log_entry = logger.log_action(
@@ -169,16 +184,8 @@ def execute_plan(
                         error_message=str(e)
                     )
                     execution_logs.append(log_entry)
-                
-                # Attempt rollback
-                try:
-                    _rollback_operations(completed_operations, logger, plan.task_id, execution_logs)
-                    rollback_performed = True
-                except Exception as rollback_error:
-                    error_message += f" | Rollback also failed: {str(rollback_error)}"
-                
-                # Abort execution
-                raise
+                # Continue to next action (continue-on-failure design)
+                continue
     
     except Exception:
         # Error already captured in error_message
@@ -206,6 +213,30 @@ def _create_folder(path: str) -> None:
         OSError: If folder creation fails
     """
     os.makedirs(path, exist_ok=True)
+
+
+def _copy_file(source: str, destination: str) -> None:
+    """
+    Copy a file from source to destination.
+
+    Creates parent directories if needed.
+
+    Args:
+        source: Source file path
+        destination: Destination file path
+
+    Raises:
+        FileNotFoundError: If source doesn't exist
+        OSError: If copy operation fails
+    """
+    if not os.path.exists(source):
+        raise FileNotFoundError(f"Source file not found: {source}")
+
+    dest_dir = os.path.dirname(destination)
+    if dest_dir:
+        os.makedirs(dest_dir, exist_ok=True)
+
+    shutil.copy2(source, destination)
 
 
 def _move_file(source: str, destination: str) -> None:

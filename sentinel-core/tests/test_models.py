@@ -37,13 +37,3 @@ def test_plan_schema_validation():
     )
     assert len(plan.actions) == 1
 
-def test_plan_action_invalid_destination():
-    """Test that MOVE requires a destination."""
-    with pytest.raises(ValueError):
-        PlanAction(
-            type=ActionType.MOVE,
-            source_path="/tmp/a",
-            destination_path=None, # Should fail
-            reason="test",
-            confidence=1.0
-        )

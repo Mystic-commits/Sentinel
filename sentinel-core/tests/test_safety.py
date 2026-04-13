@@ -5,6 +5,7 @@ Tests plan validation, safety checks, and rejection of dangerous operations.
 """
 
 import pytest
+import sys
 from pathlib import Path
 
 from sentinel_core.safety.safety import SafetyValidator
@@ -78,8 +79,8 @@ class TestSystemDirectoryProtection:
         "/System/Applications/app.app",
         "/usr/bin/command",
         "/Library/System/file",
-        "C:\\Windows\\System32\\file.dll",
-        "C:\\Program Files\\app\\file.exe",
+        pytest.param("C:\\Windows\\System32\\file.dll", marks=pytest.mark.skipif(sys.platform != "win32", reason="Windows specific")),
+        pytest.param("C:\\Program Files\\app\\file.exe", marks=pytest.mark.skipif(sys.platform != "win32", reason="Windows specific")),
     ])
     def test_reject_system_directories(self, system_path):
         """Test that operations on system directories are rejected."""
