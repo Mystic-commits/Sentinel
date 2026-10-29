@@ -174,23 +174,39 @@ export default function Workspace() {
   const dialog = useRef<HTMLDialogElement>(null);
   const goal = useRef<HTMLTextAreaElement>(null);
   const activeId = useRef<string | null>(null);
+  const refreshing = useRef(false);
+  const [historyError, setHistoryError] = useState("");
   const refresh = useCallback(async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
     try {
-      const health = (await api.health()) as { database_connected: boolean };
-      if (!health.database_connected)
-        throw new Error("Local task storage is unavailable.");
-      setConnected(true);
-      const list = (await api.getTasks()) as { tasks: { task_id: string }[] };
-      const details = await Promise.all(
-        list.tasks
-          .slice(0, 25)
-          .map((item) => api.getTask(item.task_id) as Promise<Session>),
-      );
-      setSessions(details);
-      const current = details.find((item) => item.task_id === activeId.current);
-      if (current) setActive(current);
-    } catch {
-      setConnected(false);
+      try {
+        const health = (await api.health()) as { database_connected: boolean };
+        if (!health.database_connected) throw new Error("Local task storage is unavailable.");
+        setConnected(true);
+      } catch {
+        setConnected(false);
+        return;
+      }
+      const all: Session[] = [];
+      let total = 0;
+      do {
+        const page = (await api.getTasks(all.length)) as { tasks: Session[]; total: number };
+        total = page.total;
+        if (!page.tasks.length) break;
+        all.push(...page.tasks);
+      } while (all.length < total);
+      setSessions(all);
+      const id = activeId.current;
+      if (id) {
+        const current = (await api.getTask(id)) as Session;
+        if (activeId.current === id) setActive(current);
+      }
+      setHistoryError("");
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Session history could not be refreshed.");
+    } finally {
+      refreshing.current = false;
     }
   }, []);
   useEffect(() => {
@@ -205,9 +221,16 @@ export default function Workspace() {
     const hydrate = setTimeout(() => {
       try {
         const stored = localStorage.getItem("sentinel-recipes");
-        if (stored) setRecipes([...defaults, ...JSON.parse(stored)]);
+        if (stored) {
+          const parsed: unknown = JSON.parse(stored);
+          if (Array.isArray(parsed)) setRecipes([...defaults, ...parsed.filter((item): item is Recipe =>
+            item && typeof item.name === "string" && typeof item.description === "string" && typeof item.prompt === "string" && ["files", "image", "archive"].includes(item.icon))]);
+        }
         const folders = localStorage.getItem("sentinel-folders");
-        if (folders) setRecent(JSON.parse(folders));
+        if (folders) {
+          const parsed: unknown = JSON.parse(folders);
+          if (Array.isArray(parsed)) setRecent(parsed.filter((item): item is string => typeof item === "string").slice(0, 5));
+        }
       } catch {
         /* Start with defaults if browser storage is unavailable. */
       }
@@ -241,6 +264,16 @@ export default function Workspace() {
     setTab("changes");
     setView("workspace");
     setError("");
+    if (!item.demo) {
+      void api.getTask(item.task_id).then((result) => {
+        if (activeId.current !== item.task_id) return;
+        const detail = result as Session;
+        setActive(detail);
+        setSelected(detail.approved_actions || []);
+      }).catch((err) => {
+        if (activeId.current === item.task_id) setError(err instanceof Error ? err.message : "Could not load this session.");
+      });
+    }
   };
   const newSession = () => {
     setPrompt("");
@@ -288,8 +321,6 @@ export default function Workspace() {
     setError("");
     try {
       const result = (await api.createPlan(
-        null,
-        "file_organization",
         prompt.trim(),
         path.trim(),
         strategy,
@@ -1031,10 +1062,10 @@ export default function Workspace() {
               )}
             </>
           )}
-          {error && (
+          {(error || historyError) && (
             <div className="sw-alert" role="alert">
-              {error}
-              <button aria-label="Dismiss error" onClick={() => setError("")}>
+              {error || historyError}
+              <button aria-label="Dismiss error" onClick={() => {setError(""); setHistoryError("");}}>
                 <X size={15} />
               </button>
             </div>

@@ -3,6 +3,7 @@
 import argparse
 import shlex
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from rich.console import Console
@@ -11,6 +12,8 @@ from rich.table import Table
 HELP = """Describe what you want to organize to create a preview.
 /folder PATH        Choose a folder (required before planning)
 /mode ai|rules      Choose local AI or predictable file-type rules
+/history            List saved sessions
+/resume TASK_ID     Reopen a saved session
 /status             Refresh the current task
 /review             Show numbered proposed changes
 /apply 1,3          Review and confirm selected changes
@@ -31,24 +34,31 @@ class Shell:
     def request(self, method, endpoint, **kwargs):
         response = self.client.request(method, endpoint, **kwargs)
         if response.is_error:
-            detail = response.json().get("detail", response.reason_phrase)
+            try:
+                detail = response.json().get("detail", response.reason_phrase)
+            except ValueError:
+                detail = response.reason_phrase
             raise ValueError(str(detail))
         return response.json()
 
     def task(self):
         if not self.task_id:
             raise ValueError("Create a plan first by describing what you want.")
-        return self.request("GET", f"/api/tasks/{self.task_id}")
+        return self.request("GET", f"/api/tasks/{quote(self.task_id, safe='')}")
 
-    def review(self, task):
+    def review(self, task, indices=None):
+        self.show_notices(task)
         plan = task.get("plan")
         if not plan:
             self.console.print(f"Task is {task['state']}. Use /status in a moment.", markup=False)
             return
         table = Table("Number", "Change", "From", "To", "Why")
-        for i, action in enumerate(plan["actions"], 1):
+        for column in table.columns:
+            column.no_wrap = False
+        for i in (indices if indices is not None else range(len(plan["actions"]))):
+            action = plan["actions"][i]
             table.add_row(
-                str(i),
+                str(i + 1),
                 action["type"],
                 action.get("source_path") or "",
                 action.get("destination_path") or "System Trash",
@@ -79,14 +89,32 @@ class Shell:
             if mode not in {"ai", "rules"}:
                 raise ValueError("Use /mode ai or /mode rules")
             self.strategy = "local_ai" if mode == "ai" else "file_types"
-            self.console.print("Local AI selected." if mode == "ai" else "File-type rules selected. No model needed; custom text instructions are not interpreted.")
+            self.console.print(
+                "Local AI selected."
+                if mode == "ai"
+                else "File-type rules selected. No model needed; custom text instructions are not interpreted."
+            )
+        elif text == "/history":
+            offset = 0
+            while True:
+                page = self.request("GET", "/api/tasks", params={"offset": offset, "limit": 100})
+                for item in page["tasks"]:
+                    self.console.print(
+                        f"{item['task_id']}  {item['state']}  {item['summary']}", markup=False
+                    )
+                offset += len(page["tasks"])
+                if not page["tasks"] or offset >= page["total"]:
+                    break
+        elif text.startswith("/resume "):
+            task_id = text[8:].strip()
+            task = self.request("GET", f"/api/tasks/{quote(task_id, safe='')}")
+            self.task_id = task_id
+            self.path = (task.get("plan") or {}).get("scope_path")
+            self.review(task)
         elif text == "/status":
             task = self.task()
             self.console.print(f"{task['state']}: {task['summary']}", markup=False)
-            if task.get("recovery_required"):
-                self.console.print(
-                    "Interrupted task: inspect files and receipts before creating a new plan."
-                )
+            self.show_notices(task)
         elif text == "/review":
             self.review(self.task())
         elif text.startswith("/apply "):
@@ -101,7 +129,7 @@ class Shell:
                 or any(i < 0 or i >= len(actions) for i in indices)
             ):
                 raise ValueError("Choose unique action numbers from /review.")
-            self.review({"plan": {"actions": [actions[i] for i in indices]}})
+            self.review(task, indices)
             self.console.print(
                 f"Apply {len(indices)} selected changes to task {self.task_id}?", markup=False
             )
@@ -118,7 +146,9 @@ class Shell:
             if not self.path:
                 raise ValueError("Choose a folder first with /folder PATH.")
             response = self.request(
-                "POST", "/api/plan", json={"path": self.path, "user_prompt": text, "strategy": self.strategy}
+                "POST",
+                "/api/plan",
+                json={"path": self.path, "user_prompt": text, "strategy": self.strategy},
             )
             self.task_id = response["task_id"]
             self.console.print(
@@ -126,13 +156,30 @@ class Shell:
             )
         return True
 
+    def show_notices(self, task):
+        for key in ("error", "planning_warning"):
+            if task.get(key):
+                self.console.print(str(task[key]), markup=False)
+        if task.get("recovery_required"):
+            self.console.print(
+                "Interrupted task: inspect files and receipts before creating a new plan."
+            )
+        result = task.get("result") or {}
+        if result:
+            self.console.print(
+                f"Succeeded: {result.get('success', 0)}; failed: {result.get('failed', 0)}",
+                markup=False,
+            )
+            if result.get("error"):
+                self.console.print(str(result["error"]), markup=False)
 
-def main():
+
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Sentinel: describe, review, approve. Local files stay local."
     )
     parser.add_argument("--path", help="Initial folder to organize")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     console = Console()
     console.print("[bold]Sentinel[/bold] · Your local workspace assistant")
     console.print("Describe a goal, or use /help. Changes always require review and confirmation.")

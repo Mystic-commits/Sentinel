@@ -6,7 +6,7 @@ Local-first file organization with local AI planning, explicit review, and deter
 
 ## Run locally
 
-Requires Python 3.11/3.12, Poetry, Node 20.9+, and Ollama. Clone this repository before running these commands.
+Requires Python 3.11/3.12, Poetry, and Node 20.9+. Ollama is optional for Local AI mode. Clone this repository before running these commands.
 
 ```sh
 cd sentinel-core
@@ -54,17 +54,17 @@ Run the whole Python suite, including safety and executor tests. Tests use tempo
 - Scope escapes, existing destinations, missing sources, and directory deletion are rejected. The scanner skips symlinks.
 - Deletes use system Trash. Automatic restoration of Trash deletions is unavailable.
 - The web API persists plans, approvals, timestamps, results and operation receipts in SQLite. Set `SENTINEL_TASK_DATABASE_PATH` to change its default `~/.sentinel/api-tasks.sqlite3` location. Run one API process per database: multi-worker deployment is unsupported. Interrupted jobs are flagged for manual review and never automatically replayed.
-- API execution requires a durable claim and a started receipt before each selected operation. Receipts identify attempted/completed operations; they are not tamper-proof audit evidence. A process crash between mutation and completion can leave an uncertain outcome requiring manual inspection. CLI execution still needs equivalent mandatory audit integration.
+- API execution requires a durable claim and a started receipt before each selected operation. Receipts identify attempted/completed operations; they are not tamper-proof audit evidence. A process crash between mutation and completion can leave an uncertain outcome requiring manual inspection. Both terminal entry points use this same API execution path.
 - API undo returns an explicit unavailable response until persistence is integrated.
 - Local origin/host checks reduce browser cross-origin access; device pairing and race-resistant filesystem operations still need implementation.
-- Desktop installers are placeholders. Signed release artifacts are not available.
+- Signed desktop release artifacts are not available. Empty placeholder installers have been removed.
 - Team membership, roles, tenant isolation, billing, and managed deployment are not implemented.
 
 ## Components
 
 `sentinel-core`: scanner, classifier, planner, safety engine, executor, FastAPI, CLI.
 `sentinel-web`: Next.js dashboard and website, Tauri desktop sources.
-`sentinel-api` and `sentinel-cli`: legacy shells requiring consolidation.
+The empty `sentinel-api` and `sentinel-cli` packages have been removed; API and terminal code live in `sentinel-core`.
 
 MIT licensed; see [LICENSE](LICENSE).
 
@@ -97,3 +97,18 @@ Group PDFs into clear folders and leave photos alone
 The dashboard now includes reusable recipes (including browser-saved custom instructions), a sample workspace, searchable change review, final approval dialogs, persisted session search, readable activity receipts, report export and a terminal guide. Cmd/Ctrl+K opens session search.
 
 Choose **File type rules** for a predictable move-only preview without a model. It groups recognized top-level documents, images, audio, videos and archives, leaving existing folders, code/unsupported types and collisions alone. Custom instructions are interpreted only in Local AI mode; limited AI fallbacks display a warning. In the terminal use `/mode rules` or `/mode ai`.
+
+## Terminal commands
+
+With the agent running, use `sentinel shell` (or `sentinel-shell`) for an interactive session. `/history` lists saved sessions and `/resume TASK_ID` reopens one after a restart. Errors, AI fallback warnings and execution results appear in `/status` and `/review`.
+
+```sh
+sentinel scan ~/Downloads
+sentinel plan ~/Downloads --strategy file_types
+sentinel history
+sentinel review TASK_ID
+sentinel apply TASK_ID --actions 1,3
+sentinel status TASK_ID
+```
+
+Replace TASK_ID with the ID returned by planning. Apply requires typing `APPLY`; it submits only the numbered actions you chose. The old placeholder `ask`, `clean-pc` and `undo` commands have been removed. There is no automatic undo in this release.

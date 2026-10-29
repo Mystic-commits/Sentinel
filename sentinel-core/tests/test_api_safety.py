@@ -128,3 +128,55 @@ def test_audit_write_failure_prevents_file_mutation(client, tmp_path, monkeypatc
     assert (tmp_path / "approved").exists()
     assert not (tmp_path / "organized" / "approved").exists()
     assert client.get("/api/tasks/approval").json()["state"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"scan_id": "unused"},
+        {"path": ""},
+        {"path": "."},
+        {"path": "/nonexistent-sentinel-test-folder"},
+    ],
+)
+def test_plan_requires_explicit_existing_folder(client, payload):
+    response = client.post("/api/plan", json=payload)
+    assert response.status_code in {400, 422}
+    assert client.get("/api/tasks").json()["total"] == 0
+
+
+def test_rules_plan_review_execute_and_reopen(client, tmp_path):
+    folder = tmp_path / "Inbox"
+    folder.mkdir()
+    document = folder / "notes.txt"
+    document.write_text("Keep this content")
+    code = folder / "script.py"
+    code.write_text("print('keep')")
+    response = client.post("/api/plan", json={"path": str(folder), "strategy": "file_types"})
+    assert response.status_code == 200
+    task_id = response.json()["task_id"]
+    task = client.get(f"/api/tasks/{task_id}").json()
+    assert task["state"] == "review"
+    assert len(task["plan"]["actions"]) == 1
+    assert document.exists()
+    response = client.post("/api/execute", json={"task_id": task_id, "approved_actions": [0]})
+    assert response.status_code == 200
+    task = client.get(f"/api/tasks/{task_id}").json()
+    assert task["state"] == "completed"
+    assert task["approved_actions"] == [0]
+    assert len(task["receipts"]) == 2
+    assert (folder / "Documents" / "notes.txt").read_text() == "Keep this content"
+    assert code.exists()
+    assert not document.exists()
+
+
+def test_history_pagination_keeps_older_sessions_accessible(client):
+    for number in range(105):
+        save_task(f"session-{number}", {"state": TaskState.REVIEW, "summary": str(number)})
+    first = client.get("/api/tasks?offset=0&limit=100").json()
+    second = client.get("/api/tasks?offset=100&limit=100").json()
+    assert first["total"] == 105
+    assert len(first["tasks"]) == 100
+    assert len(second["tasks"]) == 5
+    assert len({task["task_id"] for task in first["tasks"] + second["tasks"]}) == 105

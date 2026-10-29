@@ -77,8 +77,41 @@ def test_invalid_selection_never_executes(command):
 
 def test_rules_mode_is_explicit_and_shared_with_api(tmp_path):
     import json
-    shell,calls=session()
-    shell.handle('/folder '+str(tmp_path))
-    shell.handle('/mode rules')
-    shell.handle('Create a preview')
-    assert json.loads(calls[-1].content)['strategy'] == 'file_types'
+
+    shell, calls = session()
+    shell.handle("/folder " + str(tmp_path))
+    shell.handle("/mode rules")
+    shell.handle("Create a preview")
+    assert json.loads(calls[-1].content)["strategy"] == "file_types"
+
+
+def test_resume_reopens_saved_plan():
+    shell, calls = session()
+    shell.handle("/resume saved-task")
+    assert shell.task_id == "saved-task"
+    assert calls[-1].url.path == "/api/tasks/saved-task"
+    assert all(call.method == "GET" for call in calls)
+
+
+def test_review_displays_fallback_and_failure():
+    shell, _ = session()
+    shell.review(
+        {
+            "state": "failed",
+            "error": "Folder is unavailable",
+            "planning_warning": "Custom instructions were not used",
+        }
+    )
+    output = shell.console.file.getvalue()
+    assert "Folder is unavailable" in output
+    assert "Custom instructions were not used" in output
+
+
+def test_non_json_api_error_is_readable():
+    client = httpx.Client(
+        base_url="http://127.0.0.1:8000",
+        transport=httpx.MockTransport(lambda _: httpx.Response(503, text="unavailable")),
+    )
+    shell = Shell(client)
+    with pytest.raises(ValueError, match="Service Unavailable"):
+        shell.handle("/history")

@@ -1,63 +1,74 @@
-"""
-Sentinel CLI - Main Application
+"""Command-line access to the same persisted workflow as the dashboard."""
 
-Entry point for the Sentinel command-line interface.
-"""
+import argparse
+from pathlib import Path
 
-import typer
-from typing_extensions import Annotated
+import httpx
+from rich.console import Console
 
-from .console import console
-
-# Create Typer app
-app = typer.Typer(
-    name="sentinel",
-    help="🛡️  Sentinel - AI-powered file organization assistant",
-    no_args_is_help=True,
-    add_completion=False,
-    rich_markup_mode="rich",
-)
+from .shell import Shell, main as interactive
 
 
-def version_callback(value: bool):
-    """Display version and exit."""
-    if value:
-        console.print("[highlight]Sentinel[/] v0.1.0")
-        console.print("[muted]Local-first AI file organizer[/]")
-        raise typer.Exit()
+def app(argv=None):
+    parser = argparse.ArgumentParser(description="Sentinel local file organizer")
+    parser.add_argument("--version", action="version", version="Sentinel 0.1.0")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("shell", help="Open the interactive prompt")
+    scan = commands.add_parser("scan", help="Read-only folder scan")
+    scan.add_argument("path", type=Path)
+    plan = commands.add_parser("plan", help="Create a persisted preview; never execute")
+    plan.add_argument("path", type=Path)
+    plan.add_argument("--prompt", default="Organize by file type. Do not delete anything.")
+    plan.add_argument("--strategy", choices=["local_ai", "file_types"], default="local_ai")
+    commands.add_parser("history", help="List persisted sessions")
+    for name in ["status", "review", "apply"]:
+        sub = commands.add_parser(name)
+        sub.add_argument("task_id")
+        if name == "apply":
+            sub.add_argument("--actions", required=True, help="Original review numbers, e.g. 1,3")
+    args = parser.parse_args(argv)
+    if args.command == "shell":
+        return interactive([])
+    console = Console()
+    try:
+        if args.command == "scan":
+            from sentinel_core.scanner import scan_directory
 
-
-@app.callback()
-def main(
-    version: Annotated[
-        bool,
-        typer.Option(
-            "--version",
-            "-v",
-            help="Show version and exit",
-            callback=version_callback,
-            is_eager=True,
-        ),
-    ] = False,
-):
-    """
-    Sentinel - AI-powered file organization assistant.
-    
-    Safely organize your Downloads, Desktop, and Documents with AI assistance.
-    All operations are logged and reversible.
-    """
-    pass
-
-
-# Register commands
-from .commands import scan, plan, apply, clean, undo, ask
-
-app.command(name="scan")(scan.scan_command)
-app.command(name="plan")(plan.plan_command)
-app.command(name="apply")(apply.apply_command)
-app.command(name="clean-pc")(clean.clean_command)
-app.command(name="undo")(undo.undo_command)
-app.command(name="ask")(ask.ask_command)
+            path = args.path.expanduser().resolve()
+            if not path.is_dir():
+                raise ValueError("Choose an existing folder.")
+            result = scan_directory(str(path))
+            console.print(
+                f"{len(result.files)} files, {sum(f.size_bytes for f in result.files)} bytes",
+                markup=False,
+            )
+            for error in result.errors:
+                console.print(str(error), markup=False)
+            return
+        with httpx.Client(base_url="http://127.0.0.1:8000", timeout=30, trust_env=False) as client:
+            shell = Shell(client, console)
+            if args.command == "plan":
+                path = args.path.expanduser().resolve()
+                if not path.is_dir():
+                    raise ValueError("Choose an existing folder.")
+                if not args.prompt.strip() or args.prompt.lstrip().startswith("/"):
+                    raise ValueError("The plan prompt must be a description, not a shell command.")
+                shell.path = str(path)
+                shell.strategy = args.strategy
+                shell.handle(args.prompt)
+            elif args.command == "history":
+                shell.handle("/history")
+            else:
+                shell.task_id = args.task_id
+                shell.handle(
+                    "/apply " + args.actions if args.command == "apply" else "/" + args.command
+                )
+    except (ValueError, httpx.HTTPError) as error:
+        console.print(f"Could not continue: {error}", markup=False)
+        raise SystemExit(1) from error
+    except (EOFError, KeyboardInterrupt):
+        console.print("Cancelled. No further changes requested.")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

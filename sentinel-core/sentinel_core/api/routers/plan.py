@@ -22,7 +22,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     """
     Create an AI-powered organization plan.
 
-    Either provide a scan_id from a previous scan, or a path to scan first.
+    Provide an explicit folder path to scan first.
 
     Args:
         request: Plan request
@@ -46,12 +46,11 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     from sentinel_core.executor import Executor
     from sentinel_core.planner.ollama_client import OllamaClient
 
-    # If neither provided, we assume default Clean My PC behavior (scan standard dirs)
-    # if not request.scan_id and not request.path:
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail="Either scan_id or path must be provided"
-    #     )
+    from pathlib import Path
+
+    target = Path(request.path).expanduser()
+    if not target.is_absolute() or not target.is_dir():
+        raise HTTPException(status_code=400, detail="Choose an existing absolute folder path.")
 
     task_id = f"task-{uuid.uuid4()}"
 
@@ -81,8 +80,8 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             pipeline = CleanPCPipeline(planner, safety, executor)
 
             # Execute pipeline in thread to avoid blocking
-            # Logic: If path provided, use it. If not, default to standard dirs.
-            target_dirs = [path] if path else None
+            # Limit planning to the explicitly selected folder.
+            target_dirs = [path]
 
             logger.info(f"Running pipeline for {task_id}...")
             try:
@@ -143,7 +142,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     )
 
     # Start background task
-    background_tasks.add_task(perform_planning, task_id, request.path)
+    background_tasks.add_task(perform_planning, task_id, str(target.resolve()))
 
     # Return initial response
     return PlanResponse(
@@ -155,39 +154,3 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
         safety_approved=False,
         ambiguous_count=0,
     )
-
-
-@router.post("/plan/{task_id}/approve-all")
-async def approve_all_plan(task_id: str):
-    """
-    Approve all pending operations in a plan.
-    """
-    from ..memory import get_task, save_task
-
-    task_data = get_task(task_id)
-
-    if not task_data or "plan" not in task_data:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    plan = task_data["plan"]
-
-    # Update all pending operations to approved
-    updated_actions = []
-    for action in plan.actions:
-        # Pydantic model dump/dict might be needed if plan is object
-        # Assuming plan is Pydantic model or dict. In memory it's usually dict if loaded from json,
-        # but here it might be kept as object if in-memory store is simple dict.
-        # Let's assume it handles both.
-
-        # Check if action is object or dict
-        if hasattr(action, "status"):
-            if action.status == "pending":
-                action.status = "approved"
-        elif isinstance(action, dict):
-            if action.get("status") == "pending":
-                action["status"] = "approved"
-
-    # Save back to store
-    save_task(task_id, {"plan": plan})
-
-    return {"message": "All operations approved"}

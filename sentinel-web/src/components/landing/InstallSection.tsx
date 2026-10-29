@@ -6,17 +6,21 @@ import { motion } from 'framer-motion';
 const steps = [
     { label: 'Install', code: 'pip install -e ./sentinel-core' },
     { label: 'Scan', code: 'sentinel scan ~/Downloads' },
-    { label: 'Plan', code: 'sentinel plan ~/Downloads --mode organize' },
-    { label: 'Execute', code: 'sentinel apply task-abc-123' },
+    { label: 'Plan', code: 'sentinel plan ~/Downloads --strategy file_types' },
+    { label: 'Review & apply', code: 'sentinel shell' },
 ];
 
 export default function InstallSection() {
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-    const copyToClipboard = (text: string, index: number) => {
-        navigator.clipboard.writeText(text);
+    const [copyError, setCopyError] = useState('');
+    const copyToClipboard = async (text: string, index: number) => {
+        try {
+        await navigator.clipboard.writeText(text);
+        setCopyError('');
         setCopiedIndex(index);
         setTimeout(() => setCopiedIndex(null), 2000);
+        } catch { setCopyError('Clipboard unavailable. Select and copy the command manually.'); }
     };
 
     return (
@@ -25,6 +29,8 @@ export default function InstallSection() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[60%] h-px bg-gradient-to-r from-transparent via-edge to-transparent" />
 
             <div className="max-w-3xl mx-auto">
+                {copyError && <p role="alert">{copyError}</p>}
+                <p>Clone the repository first. Start the agent with <code>python -m sentinel_core.api.main</code> in a separate terminal before planning. In the shell use /resume TASK_ID, /review, then /apply 1,3.</p>
                 <motion.div
                     initial={{ opacity: 0, y: 14 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -86,7 +92,7 @@ export default function InstallSection() {
                         Requires Python 3.11+ · Ollama for AI features
                     </p>
                     <a
-                        href="https://github.com/yourusername/sentinel"
+                        href="https://github.com/Mystic-commits/Sentinel"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-[14px] text-txt-secondary hover:text-txt-primary transition-colors"
