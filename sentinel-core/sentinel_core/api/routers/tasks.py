@@ -56,5 +56,12 @@ async def get_task(task_id: str):
         plan=plan.model_dump(mode="json") if plan else None,
         result=result,
         receipts=data.get("receipts", []),
+        approved_actions=data.get("approved_actions", []),
+        planning_warning=(
+            data.get("summary", {}).get("planning_warning")
+            if isinstance(data.get("summary"), dict)
+            else None
+        ),
         recovery_required=data.get("recovery_required", False),
+        error=data.get("error"),
     )

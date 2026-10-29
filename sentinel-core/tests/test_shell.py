@@ -73,3 +73,12 @@ def test_invalid_selection_never_executes(command):
     with pytest.raises(ValueError):
         shell.handle(command)
     assert all(call.method == "GET" for call in calls)
+
+
+def test_rules_mode_is_explicit_and_shared_with_api(tmp_path):
+    import json
+    shell,calls=session()
+    shell.handle('/folder '+str(tmp_path))
+    shell.handle('/mode rules')
+    shell.handle('Create a preview')
+    assert json.loads(calls[-1].content)['strategy'] == 'file_types'

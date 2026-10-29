@@ -5,7 +5,7 @@ Pydantic models for API request validation.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 
 
 class ScanRequest(BaseModel):
@@ -21,6 +21,7 @@ class ScanRequest(BaseModel):
 class PlanRequest(BaseModel):
     """Request to create an organization plan."""
 
+    strategy: Literal["local_ai", "file_types"] = "local_ai"
     scan_id: Optional[str] = Field(None, description="ID from previous scan")
     path: Optional[str] = Field(None, description="Path to scan and plan")
     user_prompt: Optional[str] = Field(None, description="Custom instructions for AI")

@@ -60,6 +60,7 @@ class CleanPCPipeline:
         preferences: Optional[PreferencesSchema] = None,
         max_depth: int = 3,
         user_prompt: str = "",
+        planning_strategy: str = "local_ai",
     ) -> Dict[str, Any]:
         """
         Scan directories and generate a cleanup plan.
@@ -128,19 +129,26 @@ class CleanPCPipeline:
         if preferences is None:
             preferences = PreferencesSchema()
 
-        try:
-            plan = await asyncio.to_thread(
-                self.planner.create_plan,
-                task_id=task_id,
-                scan_result=combined_scan,
-                rule_matches=rule_matches,
-                preferences=preferences,
-                user_prompt=user_prompt,
-            )
-        except Exception as e:
-            logger.error(f"Failed to generate plan: {e}")
-            # Fallback: create a simple plan from rule matches
-            plan = self._create_fallback_plan(task_id, rule_matches, classifications, scope_path)
+        planning_warning = None
+        if planning_strategy == "file_types":
+            plan = self._create_type_plan(task_id, all_files, scope_path, target_dirs)
+        else:
+            try:
+                plan = await asyncio.to_thread(
+                    self.planner.create_plan,
+                    task_id=task_id,
+                    scan_result=combined_scan,
+                    rule_matches=rule_matches,
+                    preferences=preferences,
+                    user_prompt=user_prompt,
+                )
+            except Exception as e:
+                planning_warning = "The local model could not produce a valid plan. These are limited rule-based suggestions; custom instructions may not be reflected."
+                logger.error(f"Failed to generate plan: {e}")
+                # Fallback: create a simple plan from rule matches
+                plan = self._create_fallback_plan(
+                    task_id, rule_matches, classifications, scope_path
+                )
 
         plan.scope_path = scope_path
         plan.authorized_roots = target_dirs
@@ -151,6 +159,7 @@ class CleanPCPipeline:
 
         if not validation_result.is_safe:
             logger.warning(f"AI plan failed safety validation: {validation_result.errors}")
+            planning_warning = "The AI plan failed safety checks. These are limited rule-based suggestions; review them carefully."
             logger.info("Falling back to rule-based plan...")
 
             # Try fallback plan instead of aborting
@@ -183,6 +192,8 @@ class CleanPCPipeline:
 
         # 9. Generate summary statistics
         summary = self._generate_summary(classifications, plan)
+        summary["planning_warning"] = planning_warning
+        summary["planning_strategy"] = planning_strategy
 
         logger.info(
             f"Clean My PC scan complete. Found {summary['total_files']} files, "
@@ -230,6 +241,60 @@ class CleanPCPipeline:
             "errors": result.error_message,
             "dry_run": dry_run,
         }
+
+    def _create_type_plan(self, task_id, files, scope_path, target_dirs):
+        """Predictable, move-only organization of files directly inside selected roots."""
+        from sentinel_core.models.planner import PlanAction, AmbiguousFile
+
+        categories = {
+            "document": "Documents",
+            "image": "Images",
+            "audio": "Audio",
+            "video": "Videos",
+            "archive": "Archives",
+        }
+        roots = {Path(root).resolve() for root in target_dirs}
+        actions, ambiguous = [], []
+        for file in files:
+            source = Path(file.path)
+            category = categories.get(file.file_type.value)
+            if file.file_type.value == "document" and source.suffix.lower() not in {
+                ".txt",
+                ".md",
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".odt",
+                ".rtf",
+                ".csv",
+            }:
+                continue
+            if source.parent.resolve() not in roots or not category:
+                continue
+            destination = source.parent / category / source.name
+            if destination.exists():
+                ambiguous.append(
+                    AmbiguousFile(
+                        path=str(source), reason="Destination exists; file left unchanged."
+                    )
+                )
+                continue
+            actions.append(
+                PlanAction(
+                    type="move",
+                    source_path=str(source),
+                    destination_path=str(destination),
+                    reason=f"Group {file.file_type.value} files in {category}. File contents remain unchanged.",
+                    confidence=1,
+                )
+            )
+        return PlanSchema(
+            task_id=task_id,
+            scope_path=scope_path,
+            actions=actions,
+            ambiguous_files=ambiguous,
+            summary=f"Proposed {len(actions)} file-type moves. No deletions. Existing folders and unsupported file types are left alone. {len(ambiguous)} destination collisions left unchanged.",
+        )
 
     def _get_default_target_dirs(self) -> List[str]:
         """

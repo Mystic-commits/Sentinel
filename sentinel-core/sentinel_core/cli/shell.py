@@ -10,6 +10,7 @@ from rich.table import Table
 
 HELP = """Describe what you want to organize to create a preview.
 /folder PATH        Choose a folder (required before planning)
+/mode ai|rules      Choose local AI or predictable file-type rules
 /status             Refresh the current task
 /review             Show numbered proposed changes
 /apply 1,3          Review and confirm selected changes
@@ -24,6 +25,7 @@ class Shell:
         self.console = console or Console()
         self.path = str(Path(path).expanduser().resolve()) if path else None
         self.task_id = None
+        self.strategy = "local_ai"
         self.confirm = confirm
 
     def request(self, method, endpoint, **kwargs):
@@ -72,6 +74,12 @@ class Shell:
             self.path = str(path)
             self.task_id = None
             self.console.print(f"Folder: {self.path}", markup=False)
+        elif text.startswith("/mode "):
+            mode = text[6:].strip()
+            if mode not in {"ai", "rules"}:
+                raise ValueError("Use /mode ai or /mode rules")
+            self.strategy = "local_ai" if mode == "ai" else "file_types"
+            self.console.print("Local AI selected." if mode == "ai" else "File-type rules selected. No model needed; custom text instructions are not interpreted.")
         elif text == "/status":
             task = self.task()
             self.console.print(f"{task['state']}: {task['summary']}", markup=False)
@@ -110,7 +118,7 @@ class Shell:
             if not self.path:
                 raise ValueError("Choose a folder first with /folder PATH.")
             response = self.request(
-                "POST", "/api/plan", json={"path": self.path, "user_prompt": text}
+                "POST", "/api/plan", json={"path": self.path, "user_prompt": text, "strategy": self.strategy}
             )
             self.task_id = response["task_id"]
             self.console.print(

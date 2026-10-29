@@ -116,7 +116,10 @@ class TaskDetailResponse(BaseModel):
     plan: Optional[dict] = None
     result: dict = Field(default_factory=dict)
     receipts: List[dict] = Field(default_factory=list)
+    approved_actions: List[int] = Field(default_factory=list)
+    planning_warning: Optional[str] = None
     recovery_required: bool = False
+    error: Optional[str] = None
 
     """Response from task detail endpoint."""
 

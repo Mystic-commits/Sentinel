@@ -87,7 +87,10 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             logger.info(f"Running pipeline for {task_id}...")
             try:
                 result = await pipeline.scan_and_plan(
-                    task_id, target_dirs=target_dirs, user_prompt=request.user_prompt or ""
+                    task_id,
+                    target_dirs=target_dirs,
+                    user_prompt=request.user_prompt or "",
+                    planning_strategy=request.strategy,
                 )
             finally:
                 ollama.close()
@@ -131,7 +134,13 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
 
     from ..memory import save_task
 
-    save_task(task_id, {"state": TaskState.PLANNING})
+    save_task(
+        task_id,
+        {
+            "state": TaskState.PLANNING,
+            "summary": request.user_prompt or "Preparing your organization preview",
+        },
+    )
 
     # Start background task
     background_tasks.add_task(perform_planning, task_id, request.path)

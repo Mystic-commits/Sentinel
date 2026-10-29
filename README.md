@@ -91,3 +91,9 @@ Group PDFs into clear folders and leave photos alone
 ```
 
 `/apply` shows the selected changes and requires typing `APPLY`. Numbers refer to the original `/review` list. The terminal uses the same local API, stored plans, validation and execution receipts as the dashboard. It does not execute arbitrary shell commands. This first terminal session requires an already running API; automatic setup, streaming responses and native folder picking are future work.
+
+## Workspace capabilities
+
+The dashboard now includes reusable recipes (including browser-saved custom instructions), a sample workspace, searchable change review, final approval dialogs, persisted session search, readable activity receipts, report export and a terminal guide. Cmd/Ctrl+K opens session search.
+
+Choose **File type rules** for a predictable move-only preview without a model. It groups recognized top-level documents, images, audio, videos and archives, leaving existing folders, code/unsupported types and collisions alone. Custom instructions are interpreted only in Local AI mode; limited AI fallbacks display a warning. In the terminal use `/mode rules` or `/mode ai`.
