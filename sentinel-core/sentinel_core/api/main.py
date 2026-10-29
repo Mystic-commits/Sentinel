@@ -16,8 +16,7 @@ from .models.responses import HealthResponse
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -26,16 +25,16 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Application lifespan manager.
-    
+
     Handles startup and shutdown events for the WebSocket manager.
     """
     # Startup
     logger.info("Sentinel API starting up...")
     await ws_manager.startup()
     logger.info("Sentinel API ready")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Sentinel API shutting down...")
     await ws_manager.shutdown()
@@ -49,7 +48,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # CORS middleware - localhost only for security
@@ -60,6 +59,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from .local_access import LocalAccessMiddleware
+
+app.add_middleware(LocalAccessMiddleware)
 
 # Include routers
 app.include_router(scan.router, prefix=settings.api_prefix, tags=["scan"])
@@ -78,7 +81,7 @@ async def root():
         "message": "Sentinel API",
         "version": "0.1.0",
         "docs": "/docs",
-        "websocket": "/ws/events"
+        "websocket": "/ws/events",
     }
 
 
@@ -86,30 +89,26 @@ async def root():
 async def health_check():
     """
     Health check endpoint.
-    
+
     Returns:
         HealthResponse with server status
-        
+
     Example:
         GET /api/health
     """
     # TODO: Check database connection
     db_connected = True
-    
-    return HealthResponse(
-        status="healthy",
-        version="0.1.0",
-        database_connected=db_connected
-    )
+
+    return HealthResponse(status="healthy", version="0.1.0", database_connected=db_connected)
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "sentinel_core.api.main:app",
         host=settings.host,
         port=settings.port,
         reload=settings.reload,
-        log_level="info"
+        log_level="info",
     )

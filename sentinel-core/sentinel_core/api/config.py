@@ -11,11 +11,11 @@ from typing import List
 class Settings(BaseSettings):
     """
     Application settings.
-    
+
     Configuration can be overridden via environment variables prefixed with SENTINEL_.
     Example: SENTINEL_PORT=9000
     """
-    
+
     # CORS - localhost only for security
     allowed_origins: List[str] = [
         "http://localhost:3000",
@@ -26,18 +26,21 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "tauri://localhost",  # For Tauri desktop app
     ]
-    
+
     # Database
     database_url: str = "~/.sentinel/sentinel.db"
-    
+
     # Server
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "qwen3:4b"
+    ollama_timeout: float = 120.0
     port: int = 8000
     reload: bool = False
-    
+
     # API
     api_prefix: str = "/api"
-    
+
     class Config:
         env_prefix = "SENTINEL_"
         case_sensitive = False

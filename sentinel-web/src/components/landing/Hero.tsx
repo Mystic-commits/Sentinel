@@ -78,7 +78,7 @@ export default function Hero() {
                 >
                     <span className="text-txt-faint font-mono text-[14px]">$</span>
                     <code className="text-[14px] font-mono text-txt-secondary">
-                        pip install sentinel-ai
+                        pip install -e ./sentinel-core
                     </code>
                     <button className="text-[12px] text-txt-faint hover:text-txt-secondary transition-colors px-2 py-1 rounded-lg hover:bg-surface-2">
                         Copy

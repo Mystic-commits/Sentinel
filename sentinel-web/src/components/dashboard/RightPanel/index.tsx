@@ -148,7 +148,10 @@ function DiffsPanel({ task }: { task: any }) {
             }
             onExecute={() => {
                 const { api } = require('@/lib/api/client');
-                api.executeTask(task.id).catch(console.error);
+                const approved = task.plan.operations.flatMap((op: any, index: number) => op.status === 'approved' ? [index] : []);
+                api.executeTask(task.id, approved).catch((error: Error) => {
+                    useStore.getState().addLog(task.id, { id: crypto.randomUUID(), level: 'error', message: error.message, timestamp: new Date().toISOString() });
+                });
             }}
         />
     );

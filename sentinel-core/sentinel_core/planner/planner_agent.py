@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Change this one constant to tune sensitivity across the entire pipeline.
 MIN_RULE_CONFIDENCE = 0.8
 
+
 class PlannerAgent:
     """
     Orchestrates the AI-powered planning pipeline.
@@ -48,15 +49,15 @@ class PlannerAgent:
         # Assume template is in the same directory as this file
         template_path = Path(__file__).parent / "planner_prompt.txt"
         if not template_path.exists():
-             raise FileNotFoundError(f"Prompt template not found at {template_path}")
+            raise FileNotFoundError(f"Prompt template not found at {template_path}")
         return Template(template_path.read_text(encoding="utf-8"))
 
     def create_plan(
-        self, 
-        task_id: str, 
-        scan_result: ScanResult, 
+        self,
+        task_id: str,
+        scan_result: ScanResult,
         rule_matches: List[RuleMatchResult],
-        preferences: PreferencesSchema
+        preferences: PreferencesSchema,
     ) -> PlanSchema:
         """
         Orchestrates the planning process:
@@ -65,44 +66,50 @@ class PlannerAgent:
         3. Calls LLM
         4. Validates output
         """
-        
+
         # 1. Prepare Context (Simplify for LLM)
         files_summary = [
             {
-                "path": f.path, 
-                "name": f.name, 
-                "type": f.file_type.value, 
+                "path": f.path,
+                "name": f.name,
+                "type": f.file_type.value,
                 "size": f.size_bytes,
-                "preview": f.preview_text[:100] if f.preview_text else None
-            } 
+                "preview": f.preview_text[:100] if f.preview_text else None,
+            }
             for f in scan_result.files
         ]
-        
+
         matches_summary = [
-            {
-                "file": r.file_path,
-                "rule": r.matched_rule,
-                "category": r.suggested_category
-            }
-            for r in rule_matches if r.confidence > MIN_RULE_CONFIDENCE
+            {"file": r.file_path, "rule": r.matched_rule, "category": r.suggested_category}
+            for r in rule_matches
+            if r.confidence > MIN_RULE_CONFIDENCE
         ]
-        
+
         # 2. Render Prompt
         prompt = self._prompt_template.render(
             task_id=task_id,
             scope_path=scan_result.root_path,
             files_json=json.dumps(files_summary, indent=2),
             rule_matches_json=json.dumps(matches_summary, indent=2),
-            preferences_json=preferences.model_dump_json(indent=2)
+            preferences_json=preferences.model_dump_json(indent=2),
         )
-        
+
         # 3. Generate
         logger.info(f"Generating plan for task {task_id} with model {self.model_name}")
-        response_data = self.client.generate_json(prompt, model=self.model_name)
-        
+        response_data = self.client.generate_json(
+            prompt, model=self.model_name, schema=PlanSchema.model_json_schema()
+        )
+
         # 4. Validate & Parse
         try:
             plan = PlanSchema(**response_data)
+            plan.authorized_roots = []
+            plan.task_id = task_id
+            plan.scope_path = scan_result.root_path
+            scanned = {str(Path(f.path).resolve()) for f in scan_result.files}
+            for action in plan.actions:
+                if action.source_path and str(Path(action.source_path).resolve()) not in scanned:
+                    raise ValueError("Plan references a file that was not scanned")
             return plan
         except Exception as e:
             logger.error(f"Failed to validate plan: {e}")

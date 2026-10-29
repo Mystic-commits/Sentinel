@@ -60,7 +60,7 @@ class APIClient {
     async previewPlan(planId: string) {
         return this.request('/preview', {
             method: 'POST',
-            body: JSON.stringify({ plan_id: planId }),
+            body: JSON.stringify({ task_id: planId }),
         });
     }
 
@@ -72,12 +72,13 @@ class APIClient {
     }
 
     // Execute task
-    async executeTask(taskId: string) {
+    async executeTask(taskId: string, approvedActions: number[]) {
         return this.request('/execute', {
             method: 'POST',
             body: JSON.stringify({
                 task_id: taskId,
-                skip_safety: false, // Always false
+                skip_safety: false,
+                approved_actions: approvedActions,
             }),
         });
     }

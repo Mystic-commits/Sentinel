@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 
 const steps = [
-    { label: 'Install', code: 'pip install sentinel-ai' },
+    { label: 'Install', code: 'pip install -e ./sentinel-core' },
     { label: 'Scan', code: 'sentinel scan ~/Downloads' },
     { label: 'Plan', code: 'sentinel plan ~/Downloads --mode organize' },
     { label: 'Execute', code: 'sentinel apply task-abc-123' },
