@@ -67,3 +67,27 @@ Run the whole Python suite, including safety and executor tests. Tests use tempo
 `sentinel-api` and `sentinel-cli`: legacy shells requiring consolidation.
 
 MIT licensed; see [LICENSE](LICENSE).
+
+## Prompt and terminal access
+
+The dashboard guides you through a folder and a plain-language goal. Suggested prompts help you start, and Create preview proposes changes for review. Ctrl/Cmd+Enter submits; Enter adds a new line. Advanced access explains the terminal workflow.
+
+With the local API running, install the CLI entry point using `poetry install` in `sentinel-core`, then run:
+
+```sh
+poetry run sentinel-shell
+```
+
+Inside the session:
+
+```text
+/folder "/full/path/to/Downloads"
+Group PDFs into clear folders and leave photos alone
+/status
+/review
+/apply 1,3
+/help
+/exit
+```
+
+`/apply` shows the selected changes and requires typing `APPLY`. Numbers refer to the original `/review` list. The terminal uses the same local API, stored plans, validation and execution receipts as the dashboard. It does not execute arbitrary shell commands. This first terminal session requires an already running API; automatic setup, streaming responses and native folder picking are future work.

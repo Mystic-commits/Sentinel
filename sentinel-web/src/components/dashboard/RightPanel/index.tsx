@@ -13,7 +13,7 @@ export default function RightPanel() {
     const activeTask = useActiveTask();
 
     return (
-        <div className="w-80 flex flex-col h-screen bg-surface-1 border-l border-edge">
+        <div className="w-full lg:w-96 shrink-0 flex flex-col h-[60vh] lg:h-screen bg-surface-1 border-l border-edge">
             {/* Tabs */}
             <div className="flex h-12 border-b border-edge">
                 {TABS.map((tab) => (

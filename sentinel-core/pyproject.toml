@@ -27,6 +27,7 @@ pydantic-settings = "^2.0.0"
 
 [tool.poetry.scripts]
 sentinel = "sentinel_core.cli.main:app"
+sentinel-shell = "sentinel_core.cli.shell:main"
 
 
 [tool.poetry.group.dev.dependencies]

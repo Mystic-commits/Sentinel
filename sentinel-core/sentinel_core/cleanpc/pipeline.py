@@ -59,6 +59,7 @@ class CleanPCPipeline:
         target_dirs: Optional[List[str]] = None,
         preferences: Optional[PreferencesSchema] = None,
         max_depth: int = 3,
+        user_prompt: str = "",
     ) -> Dict[str, Any]:
         """
         Scan directories and generate a cleanup plan.
@@ -134,6 +135,7 @@ class CleanPCPipeline:
                 scan_result=combined_scan,
                 rule_matches=rule_matches,
                 preferences=preferences,
+                user_prompt=user_prompt,
             )
         except Exception as e:
             logger.error(f"Failed to generate plan: {e}")

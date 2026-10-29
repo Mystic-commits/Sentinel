@@ -86,7 +86,9 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
 
             logger.info(f"Running pipeline for {task_id}...")
             try:
-                result = await pipeline.scan_and_plan(task_id, target_dirs=target_dirs)
+                result = await pipeline.scan_and_plan(
+                    task_id, target_dirs=target_dirs, user_prompt=request.user_prompt or ""
+                )
             finally:
                 ollama.close()
 

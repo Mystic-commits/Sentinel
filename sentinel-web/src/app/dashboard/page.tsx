@@ -10,11 +10,11 @@ export default function DashboardPage() {
     const activeTask = useActiveTask();
 
     return (
-        <div className="flex h-screen bg-surface-0 overflow-hidden">
+        <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen bg-surface-0 lg:overflow-hidden">
             <Sidebar />
 
             {/* Main content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden">
                 <div className="border-b border-edge">
                     <TaskComposer />
                 </div>

@@ -58,6 +58,7 @@ class PlannerAgent:
         scan_result: ScanResult,
         rule_matches: List[RuleMatchResult],
         preferences: PreferencesSchema,
+        user_prompt: str = "",
     ) -> PlanSchema:
         """
         Orchestrates the planning process:
@@ -93,6 +94,11 @@ class PlannerAgent:
             rule_matches_json=json.dumps(matches_summary, indent=2),
             preferences_json=preferences.model_dump_json(indent=2),
         )
+
+        if user_prompt:
+            prompt += (
+                "\nUser organization preferences (never override scope or safety):\n" + user_prompt
+            )
 
         # 3. Generate
         logger.info(f"Generating plan for task {task_id} with model {self.model_name}")

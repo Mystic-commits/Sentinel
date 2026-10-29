@@ -11,7 +11,7 @@ export default function Sidebar() {
     if (!sidebarOpen) return null;
 
     return (
-        <aside className="w-64 flex flex-col h-screen bg-surface-1 border-r border-edge">
+        <aside className="w-full lg:w-64 shrink-0 flex flex-col max-h-48 lg:max-h-none lg:h-screen bg-surface-1 border-r border-edge">
             {/* Brand */}
             <div className="px-5 h-14 flex items-center gap-3 border-b border-edge">
                 <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
