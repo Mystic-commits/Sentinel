@@ -24,7 +24,7 @@ const stateContent: Record<TaskState, { label: string; title: string; lines: str
     },
     PLANNING: {
         label: 'Plan',
-        title: 'sentinel plan --mode organize',
+        title: 'sentinel plan ~/Downloads --strategy file_types',
         lines: [
             'Categorizing by file type',
             'Grouping by creation date',
@@ -44,7 +44,7 @@ const stateContent: Record<TaskState, { label: string; title: string; lines: str
     },
     EXECUTING: {
         label: 'Execute',
-        title: 'sentinel apply task-abc-123',
+        title: 'sentinel apply task-abc-123 --actions 1,2',
         lines: [
             'Created Images/',
             'Moved photo_001.jpg → Images/',

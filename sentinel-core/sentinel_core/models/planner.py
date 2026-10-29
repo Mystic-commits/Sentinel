@@ -2,14 +2,16 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 from sentinel_core.models.enums import ActionType
 
+
 class PlanAction(BaseModel):
     """A proposed atomic action."""
+
     type: ActionType
     source_path: Optional[str] = None
     destination_path: Optional[str] = None
     reason: str
     confidence: float = Field(ge=0.0, le=1.0)
-    
+
     @field_validator("destination_path")
     @classmethod
     def validate_destination(cls, v: Optional[str], info: Any) -> Optional[str]:
@@ -20,21 +22,26 @@ class PlanAction(BaseModel):
             raise ValueError(f"Destination path is required for {action_type}")
         return v
 
+
 class AmbiguousFile(BaseModel):
     """A file that the Planner is unsure about."""
+
     path: str
     suggested_action: Optional[ActionType] = None
     reason: str
 
+
 class PlanSchema(BaseModel):
     """The strict schema for LLM output."""
+
     task_id: str
     scope_path: str
+    authorized_roots: List[str] = Field(default_factory=list)
     folders_to_create: List[str] = []
     actions: List[PlanAction]
     ambiguous_files: List[AmbiguousFile] = []
     summary: str
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -44,15 +51,15 @@ class PlanSchema(BaseModel):
                     "folders_to_create": ["/Users/user/Downloads/PDFs"],
                     "actions": [
                         {
-                             "type": "move",
-                             "source_path": "/Users/user/Downloads/doc.pdf",
-                             "destination_path": "/Users/user/Downloads/PDFs/doc.pdf",
-                             "reason": "It is a PDF",
-                             "confidence": 0.9
+                            "type": "move",
+                            "source_path": "/Users/user/Downloads/doc.pdf",
+                            "destination_path": "/Users/user/Downloads/PDFs/doc.pdf",
+                            "reason": "It is a PDF",
+                            "confidence": 0.9,
                         }
                     ],
                     "ambiguous_files": [],
-                    "summary": "Moving 1 file."
+                    "summary": "Moving 1 file.",
                 }
             ]
         }

@@ -1,0 +1,182 @@
+import pytest
+from fastapi.testclient import TestClient
+from sentinel_core.api.main import app
+from sentinel_core.api.memory import save_task, task_store
+from sentinel_core.models.planner import PlanSchema, PlanAction
+from sentinel_core.models.enums import TaskState
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "sentinel_core.api.config.settings.task_database_path", str(tmp_path / "tasks.sqlite3")
+    )
+    task_store.clear()
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        yield client
+    task_store.clear()
+
+
+def seed(tmp_path):
+    actions = []
+    for name in ["approved", "rejected"]:
+        source = tmp_path / name
+        source.write_text(name)
+        actions.append(
+            PlanAction(
+                type="move",
+                source_path=str(source),
+                destination_path=str(tmp_path / "organized" / name),
+                reason="test",
+                confidence=1,
+            )
+        )
+    plan = PlanSchema(
+        task_id="approval",
+        scope_path=str(tmp_path),
+        actions=actions,
+        folders_to_create=[str(tmp_path / "unapproved-folder")],
+        summary="test",
+    )
+    save_task("approval", {"plan": plan, "state": TaskState.REVIEW})
+
+
+def test_approval_required(client, tmp_path):
+    seed(tmp_path)
+    assert client.post("/api/execute", json={"task_id": "approval"}).status_code == 422
+    assert (
+        client.post(
+            "/api/execute", json={"task_id": "approval", "approved_actions": []}
+        ).status_code
+        == 422
+    )
+    assert (tmp_path / "approved").exists()
+
+
+def test_only_selected_actions_execute_and_no_replay(client, tmp_path):
+    seed(tmp_path)
+    payload = {"task_id": "approval", "approved_actions": [0]}
+    assert client.post("/api/execute", json=payload).status_code == 200
+    assert (tmp_path / "organized" / "approved").read_text() == "approved"
+    assert (tmp_path / "rejected").exists()
+    assert not (tmp_path / "unapproved-folder").exists()
+    assert client.post("/api/execute", json=payload).status_code == 409
+
+
+@pytest.mark.parametrize("indices", [[-1], [2], [0, 0]])
+def test_invalid_selection(client, tmp_path, indices):
+    seed(tmp_path)
+    assert (
+        client.post(
+            "/api/execute", json={"task_id": "approval", "approved_actions": indices}
+        ).status_code
+        == 422
+    )
+    assert (tmp_path / "approved").exists()
+
+
+def test_external_origin_blocked(client):
+    assert client.get("/api/tasks", headers={"Origin": "https://evil.example"}).status_code == 403
+    assert client.get("/api/tasks", headers={"Host": "evil.example"}).status_code == 403
+    assert client.get("/api/tasks", headers={"Origin": "http://localhost:3000"}).status_code == 200
+
+
+def test_websocket_external_origin_blocked(client):
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/events", headers={"Origin": "https://evil.example"}):
+            pass
+
+
+def test_scan_runs_without_developer_directory(client, tmp_path):
+    (tmp_path / "sample.txt").write_text("sample")
+    assert client.post("/api/scan", json={"path": str(tmp_path), "max_depth": 1}).status_code == 200
+
+
+def test_history_and_receipts_survive_api_restart(client, tmp_path):
+    seed(tmp_path)
+    created = client.get("/api/tasks/approval").json()["created_at"]
+    assert (
+        client.post(
+            "/api/execute", json={"task_id": "approval", "approved_actions": [0]}
+        ).status_code
+        == 200
+    )
+    with TestClient(app, base_url="http://127.0.0.1") as restarted:
+        data = restarted.get("/api/tasks/approval").json()
+        assert data["created_at"] == created
+        assert data["state"] == "completed"
+        assert [r["event"] for r in data["receipts"]] == ["started", "completed"]
+        assert data["successful_actions"] == 1
+        assert restarted.get("/api/tasks?limit=-1").status_code == 422
+
+
+def test_audit_write_failure_prevents_file_mutation(client, tmp_path, monkeypatch):
+    seed(tmp_path)
+
+    def fail(*args):
+        raise OSError("synthetic storage failure")
+
+    monkeypatch.setattr(task_store, "append_receipt", fail)
+    assert (
+        client.post(
+            "/api/execute", json={"task_id": "approval", "approved_actions": [0]}
+        ).status_code
+        == 200
+    )
+    assert (tmp_path / "approved").exists()
+    assert not (tmp_path / "organized" / "approved").exists()
+    assert client.get("/api/tasks/approval").json()["state"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"scan_id": "unused"},
+        {"path": ""},
+        {"path": "."},
+        {"path": "/nonexistent-sentinel-test-folder"},
+    ],
+)
+def test_plan_requires_explicit_existing_folder(client, payload):
+    response = client.post("/api/plan", json=payload)
+    assert response.status_code in {400, 422}
+    assert client.get("/api/tasks").json()["total"] == 0
+
+
+def test_rules_plan_review_execute_and_reopen(client, tmp_path):
+    folder = tmp_path / "Inbox"
+    folder.mkdir()
+    document = folder / "notes.txt"
+    document.write_text("Keep this content")
+    code = folder / "script.py"
+    code.write_text("print('keep')")
+    response = client.post("/api/plan", json={"path": str(folder), "strategy": "file_types"})
+    assert response.status_code == 200
+    task_id = response.json()["task_id"]
+    task = client.get(f"/api/tasks/{task_id}").json()
+    assert task["state"] == "review"
+    assert len(task["plan"]["actions"]) == 1
+    assert document.exists()
+    response = client.post("/api/execute", json={"task_id": task_id, "approved_actions": [0]})
+    assert response.status_code == 200
+    task = client.get(f"/api/tasks/{task_id}").json()
+    assert task["state"] == "completed"
+    assert task["approved_actions"] == [0]
+    assert len(task["receipts"]) == 2
+    assert (folder / "Documents" / "notes.txt").read_text() == "Keep this content"
+    assert code.exists()
+    assert not document.exists()
+
+
+def test_history_pagination_keeps_older_sessions_accessible(client):
+    for number in range(105):
+        save_task(f"session-{number}", {"state": TaskState.REVIEW, "summary": str(number)})
+    first = client.get("/api/tasks?offset=0&limit=100").json()
+    second = client.get("/api/tasks?offset=100&limit=100").json()
+    assert first["total"] == 105
+    assert len(first["tasks"]) == 100
+    assert len(second["tasks"]) == 5
+    assert len({task["task_id"] for task in first["tasks"] + second["tasks"]}) == 105

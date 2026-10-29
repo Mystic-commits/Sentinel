@@ -6,9 +6,7 @@ import { motion } from 'framer-motion';
 const platforms = [
     {
         name: 'macOS',
-        description: 'Native desktop app built with Tauri. Lightweight and fast.',
-        fileName: 'Sentinel_0.1.0_x64.dmg',
-        downloadUrl: '/downloads/Sentinel_0.1.0_x64.dmg',
+        description: 'Desktop packaging is in development. Use the source setup below.',
         buttonLabel: 'Download .dmg',
         comingSoon: true,
         icon: (
@@ -19,9 +17,7 @@ const platforms = [
     },
     {
         name: 'Windows',
-        description: 'Native installer for Windows 10+. No dependencies needed.',
-        fileName: 'Sentinel_0.1.0_x64.msi',
-        downloadUrl: '/downloads/Sentinel_0.1.0_x64.msi',
+        description: 'A signed Windows installer is not available yet. Use the source setup below.',
         buttonLabel: 'Download .msi',
         comingSoon: true,
         icon: (
@@ -33,10 +29,8 @@ const platforms = [
     {
         name: 'Linux / CLI',
         description: 'Install via pip. Works on any platform with Python 3.11+.',
-        fileName: null,
-        downloadUrl: null,
         buttonLabel: 'Copy command',
-        installCommand: 'pip install sentinel-ai',
+        installCommand: 'pip install -e ./sentinel-core',
         icon: (
             <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25z" />
@@ -48,10 +42,14 @@ const platforms = [
 export default function DownloadSection() {
     const [copied, setCopied] = useState(false);
 
-    const handleCopy = (text: string) => {
-        navigator.clipboard.writeText(text);
+    const [copyError, setCopyError] = useState('');
+    const handleCopy = async (text: string) => {
+        try {
+        await navigator.clipboard.writeText(text);
+        setCopyError('');
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+        } catch { setCopyError('Clipboard unavailable. Select and copy the command manually.'); }
     };
 
     return (
@@ -60,6 +58,7 @@ export default function DownloadSection() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[60%] h-px bg-gradient-to-r from-transparent via-edge to-transparent" />
 
             <div className="max-w-5xl mx-auto">
+                {copyError && <p role="alert">{copyError}</p>}
                 <motion.div
                     initial={{ opacity: 0, y: 14 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -136,18 +135,7 @@ export default function DownloadSection() {
                                             )}
                                         </button>
                                     </div>
-                                ) : (
-                                    <a
-                                        href={platform.downloadUrl!}
-                                        download
-                                        className="w-full h-10 px-4 text-[14px] font-semibold bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                        </svg>
-                                        {platform.buttonLabel}
-                                    </a>
-                                )}
+                                ) : null}
                             </div>
                         </motion.div>
                     ))}

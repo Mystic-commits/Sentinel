@@ -28,7 +28,6 @@ jobs:
         run: |
           cd sentinel-core
           poetry install
-          poetry add --group dev ruff black mypy
       
       - name: Run Ruff
         run: |
@@ -73,7 +72,6 @@ jobs:
         run: |
           cd sentinel-core
           poetry install
-          poetry add --group dev pytest pytest-asyncio pytest-cov
         shell: bash
       
       - name: Run tests
@@ -101,7 +99,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: sentinel-web/package-lock.json
       

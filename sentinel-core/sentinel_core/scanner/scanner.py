@@ -9,6 +9,7 @@ from sentinel_core.models.enums import FileType
 from sentinel_core.models.filesystem import FileMetadata, ScanResult
 from sentinel_core.scanner import config
 
+
 class Scanner:
     def __init__(self, root_path: str, max_depth: int = config.MAX_SCAN_DEPTH):
         self.root_path = Path(root_path).resolve()
@@ -25,7 +26,7 @@ class Scanner:
             return ScanResult(
                 root_path=str(self.root_path),
                 files=[],
-                errors=[f"Directory not found: {self.root_path}"]
+                errors=[f"Directory not found: {self.root_path}"],
             )
 
         files_metadata: List[FileMetadata] = []
@@ -39,15 +40,15 @@ class Scanner:
                     files_metadata.append(metadata)
                 except Exception as e:
                     errors.append(f"Failed to process {path}: {str(e)}")
-                    
+
         except Exception as e:
             errors.append(f"Fatal scan error: {str(e)}")
 
         return ScanResult(
             root_path=str(self.root_path),
             files=files_metadata,
-            ignored_count=ignored_count, # Note: _safe_walk doesn't count ignored yet for simplicity
-            errors=errors
+            ignored_count=ignored_count,  # Note: _safe_walk doesn't count ignored yet for simplicity
+            errors=errors,
         )
 
     def _safe_walk(self, directory: Path, current_depth: int):
@@ -60,9 +61,13 @@ class Scanner:
         try:
             # Sort for deterministic order
             entries = sorted(list(directory.iterdir()))
-            
+
             for entry in entries:
-                if entry.name in self.ignored_dirs or entry.name.startswith('.'):
+                if (
+                    entry.is_symlink()
+                    or entry.name in self.ignored_dirs
+                    or entry.name.startswith(".")
+                ):
                     continue
 
                 if entry.is_dir():
@@ -81,7 +86,7 @@ class Scanner:
         """
         stat = path.stat()
         file_type = self._determine_file_type(path)
-        
+
         preview = None
         # Only attempt preview if small enough
         if stat.st_size < config.MAX_FILE_SIZE_PREVIEW:
@@ -95,23 +100,27 @@ class Scanner:
             created_at=datetime.fromtimestamp(stat.st_ctime),
             modified_at=datetime.fromtimestamp(stat.st_mtime),
             file_type=file_type,
-            preview_text=preview
+            preview_text=preview[:150] if preview else None,
             # hash is expensive, so we skip it for default scan
         )
 
     def _determine_file_type(self, path: Path) -> FileType:
         ext = path.suffix.lower()
-        if ext in self.text_extensions:
-            return FileType.DOCUMENT # Broadly code/text is document for organization
-        if ext in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff'}:
+        if (
+            ext in self.text_extensions
+            or ext in self.pdf_extensions
+            or ext in {".doc", ".docx", ".odt", ".rtf"}
+        ):
+            return FileType.DOCUMENT  # Broadly code/text is document for organization
+        if ext in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff"}:
             return FileType.IMAGE
-        if ext in {'.mp4', '.mov', '.avi', '.mkv', '.webm'}:
+        if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
             return FileType.VIDEO
-        if ext in {'.mp3', '.wav', '.flac', '.aac'}:
+        if ext in {".mp3", ".wav", ".flac", ".aac"}:
             return FileType.AUDIO
-        if ext in {'.zip', '.tar', '.gz', '.7z', '.rar'}:
+        if ext in {".zip", ".tar", ".gz", ".7z", ".rar"}:
             return FileType.ARCHIVE
-        if ext in {'.exe', '.dmg', '.pkg', '.msi', '.app'}:
+        if ext in {".exe", ".dmg", ".pkg", ".msi", ".app"}:
             return FileType.EXECUTABLE
         return FileType.UNKNOWN
 
@@ -123,19 +132,19 @@ class Scanner:
         try:
             if ext in self.pdf_extensions:
                 return self._read_pdf_preview(path)
-            
+
             if ext in self.text_extensions:
                 return self._read_text_preview(path)
-                
+
         except Exception:
             return None
         return None
 
     def _read_text_preview(self, path: Path) -> Optional[str]:
         try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read(config.MAX_PREVIEW_SIZE_CHARS)
-                return content.replace('\n', ' ').strip()
+                return content.replace("\n", " ").strip()
         except Exception:
             return None
 
@@ -145,7 +154,7 @@ class Scanner:
             if len(reader.pages) > 0:
                 text = reader.pages[0].extract_text()
                 if text:
-                    return text[:config.MAX_PREVIEW_SIZE_CHARS].replace('\n', ' ').strip()
+                    return text[: config.MAX_PREVIEW_SIZE_CHARS].replace("\n", " ").strip()
         except Exception:
             return None
         return None

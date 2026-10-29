@@ -22,27 +22,28 @@ from sentinel_core.executor.log_writer import LogWriter
 def execute_plan(
     plan: PlanSchema,
     approved_actions: Optional[List[int]] = None,
-    db_session: Optional[Session] = None
+    db_session: Optional[Session] = None,
+    audit=None,
 ) -> ExecutionResult:
     """
     Execute a validated plan with logging and error handling.
-    
+
     This is the primary entry point for executing file operations.
     All operations are logged, and execution aborts on first error with rollback.
-    
+
     Args:
         plan: The PlanSchema containing actions to execute
         approved_actions: Optional list of action indices to execute.
                          If None, all actions are executed.
         db_session: Optional SQLModel Session for logging.
                    If None, operations are not logged to database.
-    
+
     Returns:
         ExecutionResult with operation outcomes and logs
-        
+
     Raises:
         Does not raise exceptions - all errors captured in ExecutionResult
-        
+
     Example:
         >>> from sentinel_core.models import PlanSchema, PlanAction, ActionType
         >>> plan = PlanSchema(
@@ -62,53 +63,65 @@ def execute_plan(
         >>> result = execute_plan(plan)
         >>> print(f"Success: {result.successful_actions}/{result.total_actions}")
     """
+    from sentinel_core.safety import SafetyValidator
+
+    validation = SafetyValidator().validate_plan(plan)
+    if not validation.is_safe:
+        return ExecutionResult(
+            task_id=plan.task_id,
+            total_actions=len(plan.actions),
+            successful_actions=0,
+            failed_actions=len(plan.actions) or 1,
+            execution_logs=[],
+            error_message="; ".join(validation.errors),
+        )
+
     # Initialize tracking
     execution_logs: List[ExecutionLogEntry] = []
     successful_actions = 0
     failed_actions = 0
     rollback_performed = False
     error_message = None
-    
+
     # Initialize logger if session provided
     logger = LogWriter(db_session) if db_session else None
-    
+
     # Determine which actions to execute
     if approved_actions is not None:
         # Filter to only approved action indices
         actions_to_execute = [
-            plan.actions[i] for i in approved_actions
-            if 0 <= i < len(plan.actions)
+            plan.actions[i] for i in approved_actions if 0 <= i < len(plan.actions)
         ]
     else:
         # Execute all actions
         actions_to_execute = plan.actions
-    
+
     total_actions = len(plan.folders_to_create) + len(actions_to_execute)
-    
+
     # Track completed operations for potential rollback
     completed_operations: List[PlanAction] = []
-    
+
     try:
         # Step 1: Create folders first
         for folder in plan.folders_to_create:
             try:
                 _create_folder(folder)
                 successful_actions += 1
-                
+
                 if logger:
                     log_entry = logger.log_action(
                         task_id=plan.task_id,
                         action_type=ActionType.CREATE_FOLDER,
                         source_path=folder,
                         destination_path=folder,
-                        status="success"
+                        status="success",
                     )
                     execution_logs.append(log_entry)
-                    
+
             except Exception as e:
                 failed_actions += 1
                 error_message = f"Failed to create folder {folder}: {str(e)}"
-                
+
                 if logger:
                     log_entry = logger.log_action(
                         task_id=plan.task_id,
@@ -116,16 +129,18 @@ def execute_plan(
                         source_path=folder,
                         destination_path=folder,
                         status="failed",
-                        error_message=str(e)
+                        error_message=str(e),
                     )
                     execution_logs.append(log_entry)
-                
+
                 # Abort on first error
                 raise
-        
+
         # Step 2: Execute file actions
         for action in actions_to_execute:
             try:
+                if audit:
+                    audit(action, "started")
                 # Execute the appropriate operation
                 if action.type == ActionType.MOVE:
                     _move_file(action.source_path, action.destination_path)
@@ -141,24 +156,28 @@ def execute_plan(
                     _create_folder(action.destination_path)
                 else:
                     raise ValueError(f"Unknown action type: {action.type}")
-                
+
                 successful_actions += 1
                 completed_operations.append(action)
-                
+                if audit:
+                    audit(action, "completed")
+
                 if logger:
                     log_entry = logger.log_action(
                         task_id=plan.task_id,
                         action_type=action.type,
                         source_path=action.source_path,
                         destination_path=action.destination_path,
-                        status="success"
+                        status="success",
                     )
                     execution_logs.append(log_entry)
-                    
+
             except Exception as e:
                 failed_actions += 1
-                error_message = f"Failed {action.type.value} operation on {action.source_path}: {str(e)}"
-                
+                error_message = (
+                    f"Failed {action.type.value} operation on {action.source_path}: {str(e)}"
+                )
+
                 if logger:
                     log_entry = logger.log_action(
                         task_id=plan.task_id,
@@ -166,24 +185,24 @@ def execute_plan(
                         source_path=action.source_path,
                         destination_path=action.destination_path,
                         status="failed",
-                        error_message=str(e)
+                        error_message=str(e),
                     )
                     execution_logs.append(log_entry)
-                
+
                 # Attempt rollback
                 try:
                     _rollback_operations(completed_operations, logger, plan.task_id, execution_logs)
                     rollback_performed = True
                 except Exception as rollback_error:
                     error_message += f" | Rollback also failed: {str(rollback_error)}"
-                
+
                 # Abort execution
                 raise
-    
+
     except Exception:
         # Error already captured in error_message
         pass
-    
+
     return ExecutionResult(
         task_id=plan.task_id,
         total_actions=total_actions,
@@ -191,17 +210,17 @@ def execute_plan(
         failed_actions=failed_actions,
         execution_logs=execution_logs,
         error_message=error_message,
-        rollback_performed=rollback_performed
+        rollback_performed=rollback_performed,
     )
 
 
 def _create_folder(path: str) -> None:
     """
     Create a folder and all parent directories.
-    
+
     Args:
         path: Path to folder to create
-        
+
     Raises:
         OSError: If folder creation fails
     """
@@ -211,13 +230,13 @@ def _create_folder(path: str) -> None:
 def _move_file(source: str, destination: str) -> None:
     """
     Move a file from source to destination.
-    
+
     Creates parent directories if needed.
-    
+
     Args:
         source: Source file path
         destination: Destination file path
-        
+
     Raises:
         FileNotFoundError: If source doesn't exist
         OSError: If move operation fails
@@ -225,12 +244,15 @@ def _move_file(source: str, destination: str) -> None:
     # Ensure source exists
     if not os.path.exists(source):
         raise FileNotFoundError(f"Source file not found: {source}")
-    
+
+    if os.path.lexists(destination):
+        raise FileExistsError(f"Refusing to overwrite destination: {destination}")
+
     # Create destination directory if needed
     dest_dir = os.path.dirname(destination)
     if dest_dir:
         os.makedirs(dest_dir, exist_ok=True)
-    
+
     # Move the file
     shutil.move(source, destination)
 
@@ -238,13 +260,13 @@ def _move_file(source: str, destination: str) -> None:
 def _rename_file(source: str, destination: str) -> None:
     """
     Rename a file.
-    
+
     This is essentially the same as move within the same directory.
-    
+
     Args:
         source: Original file path
         destination: New file path
-        
+
     Raises:
         FileNotFoundError: If source doesn't exist
         OSError: If rename operation fails
@@ -256,13 +278,13 @@ def _rename_file(source: str, destination: str) -> None:
 def _delete_file(path: str) -> None:
     """
     Safely delete a file by sending to Trash/Recycle Bin.
-    
+
     Uses send2trash for cross-platform safe deletion.
     Never permanently deletes files.
-    
+
     Args:
         path: Path to file or folder to delete
-        
+
     Raises:
         FileNotFoundError: If path doesn't exist
         OSError: If deletion fails
@@ -270,7 +292,7 @@ def _delete_file(path: str) -> None:
     # Ensure path exists
     if not os.path.exists(path):
         raise FileNotFoundError(f"Path not found: {path}")
-    
+
     # Send to trash (cross-platform)
     send2trash(path)
 
@@ -279,19 +301,19 @@ def _rollback_operations(
     completed_operations: List[PlanAction],
     logger: Optional[LogWriter],
     task_id: str,
-    execution_logs: List[ExecutionLogEntry]
+    execution_logs: List[ExecutionLogEntry],
 ) -> None:
     """
     Attempt to rollback completed operations in reverse order.
-    
+
     Best-effort rollback - some operations may not be reversible.
-    
+
     Args:
         completed_operations: List of successfully completed operations
         logger: Optional LogWriter for logging rollback attempts
         task_id: Task identifier for logging
         execution_logs: List to append rollback log entries
-        
+
     Raises:
         Exception: If critical rollback operations fail
     """
@@ -302,36 +324,40 @@ def _rollback_operations(
                 # Move back to original location
                 if os.path.exists(action.destination_path):
                     shutil.move(action.destination_path, action.source_path)
-                    
+
             elif action.type == ActionType.RENAME:
                 # Rename back to original name
                 if os.path.exists(action.destination_path):
                     shutil.move(action.destination_path, action.source_path)
-                    
+
             elif action.type == ActionType.DELETE:
                 # Cannot rollback delete - file is in trash
                 # User must manually restore from trash
                 pass
-            
+
             if logger:
                 log_entry = logger.log_action(
                     task_id=task_id,
                     action_type=action.type,
-                    source_path=action.destination_path if action.destination_path else action.source_path,
+                    source_path=(
+                        action.destination_path if action.destination_path else action.source_path
+                    ),
                     destination_path=action.source_path,
-                    status="rolled_back"
+                    status="rolled_back",
                 )
                 execution_logs.append(log_entry)
-                
+
         except Exception as e:
             # Log rollback failure but continue trying to rollback others
             if logger:
                 log_entry = logger.log_action(
                     task_id=task_id,
                     action_type=action.type,
-                    source_path=action.destination_path if action.destination_path else action.source_path,
+                    source_path=(
+                        action.destination_path if action.destination_path else action.source_path
+                    ),
                     destination_path=action.source_path,
                     status="failed",
-                    error_message=f"Rollback failed: {str(e)}"
+                    error_message=f"Rollback failed: {str(e)}",
                 )
                 execution_logs.append(log_entry)
