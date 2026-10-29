@@ -19,6 +19,12 @@ The audit found scope errors classified as warnings, approval selections ignored
 
 The initial repair branch addresses these issues, restores full test collection, upgrades frontend dependencies, makes local-model configuration explicit, constrains JSON generation, and removes unverified testimonials from the homepage. These changes establish a safer developer preview, not production certification.
 
+## Additional implemented storage work
+
+The local API now persists task plans, selected approvals, operation receipts, results and actual timestamps in a separate SQLite task database. Transactional state claims reject concurrent execution of the same task. Started receipts are committed before API file operations. Reopening preserves history; interrupted active jobs require manual review rather than automatic replay. Task history responses and pagination are validated. Tests cover concurrent claims, storage failure before mutation, receipts and history after restart.
+
+This implementation supports one API process per database. It does not provide automatic filesystem reconciliation, tamper-evident logs, signed approvals or mandatory CLI auditing. A completed receipt records an operation before any subsequent rollback; consult the final result and inspect files after failure. Do not interpret receipts alone as the final filesystem state.
+
 ## Release work in dependency order
 
 1. **Durable safety foundation:** replace the in-memory task store with transactional persistence; record immutable plan revisions, selected approvals, operation receipts and actual task timestamps. Require audit storage before mutation. Persist and recover interrupted jobs. Restrict creation to approved directories. Add source identity/hash checks and race-resistant operations so file or symlink replacement between review and execution cannot escape validation. Never overwrite during rollback or undo. Exit gate: crash/restart, concurrent requests, collision and race tests pass with no lost data.

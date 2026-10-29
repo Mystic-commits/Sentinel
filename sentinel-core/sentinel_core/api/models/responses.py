@@ -12,13 +12,13 @@ from sentinel_core.models.enums import TaskState
 
 class ScanResponse(BaseModel):
     """Response from scan endpoint."""
-    
+
     scan_id: str
     root_path: str
     total_files: int
     total_size_bytes: int
     state: TaskState
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -26,14 +26,14 @@ class ScanResponse(BaseModel):
                 "root_path": "/Users/test/Downloads",
                 "total_files": 247,
                 "total_size_bytes": 1234567890,
-                "state": "SCANNING"
+                "state": "SCANNING",
             }
         }
 
 
 class PlanResponse(BaseModel):
     """Response from plan endpoint."""
-    
+
     task_id: str
     summary: str
     total_actions: int
@@ -41,7 +41,7 @@ class PlanResponse(BaseModel):
     state: TaskState
     safety_approved: bool
     ambiguous_count: int = 0
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -51,14 +51,14 @@ class PlanResponse(BaseModel):
                 "folders_to_create": 5,
                 "state": "PLANNING",
                 "safety_approved": False,
-                "ambiguous_count": 3
+                "ambiguous_count": 3,
             }
         }
 
 
 class PreviewResponse(BaseModel):
     """Response from preview endpoint."""
-    
+
     task_id: str
     preview_text: str
     format: str
@@ -66,13 +66,13 @@ class PreviewResponse(BaseModel):
 
 class ExecuteResponse(BaseModel):
     """Response from execute endpoint."""
-    
+
     task_id: str
     state: TaskState
     successful_actions: int
     failed_actions: int
     message: Optional[str] = None
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -80,14 +80,14 @@ class ExecuteResponse(BaseModel):
                 "state": "EXECUTING",
                 "successful_actions": 0,
                 "failed_actions": 0,
-                "message": "Execution started"
+                "message": "Execution started",
             }
         }
 
 
 class UndoResponse(BaseModel):
     """Response from undo endpoint."""
-    
+
     task_id: str
     state: TaskState
     undone_operations: int
@@ -97,7 +97,7 @@ class UndoResponse(BaseModel):
 
 class TaskListItem(BaseModel):
     """Single task in list."""
-    
+
     task_id: str
     state: TaskState
     summary: str
@@ -107,14 +107,19 @@ class TaskListItem(BaseModel):
 
 class TaskListResponse(BaseModel):
     """Response from tasks list endpoint."""
-    
+
     tasks: List[TaskListItem]
     total: int
 
 
 class TaskDetailResponse(BaseModel):
+    plan: Optional[dict] = None
+    result: dict = Field(default_factory=dict)
+    receipts: List[dict] = Field(default_factory=list)
+    recovery_required: bool = False
+
     """Response from task detail endpoint."""
-    
+
     task_id: str
     state: TaskState
     summary: str
@@ -127,16 +132,12 @@ class TaskDetailResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response."""
-    
+
     status: str
     version: str
     database_connected: bool = True
-    
+
     class Config:
         json_schema_extra = {
-            "example": {
-                "status": "healthy",
-                "version": "0.1.0",
-                "database_connected": True
-            }
+            "example": {"status": "healthy", "version": "0.1.0", "database_connected": True}
         }

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ]
 
     # Database
+    task_database_path: str = "~/.sentinel/api-tasks.sqlite3"
     database_url: str = "~/.sentinel/sentinel.db"
 
     # Server

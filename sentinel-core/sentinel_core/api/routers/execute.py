@@ -104,7 +104,19 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
             status_code=400, detail=f"Plan failed safety validation: {validation_result.errors}"
         )
 
-    save_task(request.task_id, {"state": TaskState.EXECUTING})
+    from ..memory import task_store, now
+
+    if not task_store.update_task(
+        request.task_id,
+        {
+            "state": TaskState.EXECUTING,
+            "approved_actions": indices,
+            "execution_plan": plan.model_dump(mode="json"),
+            "execution_started_at": now(),
+        },
+        expected_state=TaskState.REVIEW,
+    ):
+        raise HTTPException(status_code=409, detail="Task was already claimed")
 
     # Broadcast safety passed
     await ws_manager.broadcast(
@@ -143,12 +155,29 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
             )
 
             # Call the REAL executor directly — no pipeline, no class wrapper
-            result = await asyncio.to_thread(do_execute, plan=plan)
+            result = await asyncio.to_thread(
+                do_execute,
+                plan=plan,
+                audit=lambda action, event: task_store.append_receipt(task_id, action, event),
+            )
 
             logger.warning(
                 f"[EXEC] Result: succeeded={result.successful_actions}, failed={result.failed_actions}, error={result.error_message}"
             )
 
+            save_task(
+                task_id,
+                {
+                    "state": TaskState.FAILED if result.error_message else TaskState.COMPLETED,
+                    "completed_at": now(),
+                    "result": {
+                        "success": result.successful_actions,
+                        "failed": result.failed_actions,
+                        "error": result.error_message,
+                        "rollback_performed": result.rollback_performed,
+                    },
+                },
+            )
             # Broadcast complete
             await ws_manager.broadcast(
                 WebSocketEvent(
@@ -166,18 +195,6 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
                         "progress": 100,
                     },
                 )
-            )
-
-            # Update store
-            save_task(
-                task_id,
-                {
-                    "state": TaskState.FAILED if result.error_message else TaskState.COMPLETED,
-                    "result": {
-                        "success": result.successful_actions,
-                        "failed": result.failed_actions,
-                    },
-                },
             )
 
         except Exception as e:

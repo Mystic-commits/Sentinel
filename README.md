@@ -53,7 +53,8 @@ Run the whole Python suite, including safety and executor tests. Tests use tempo
 - Review selected actions before execution; the API requires explicit action indices and rejects execution replay.
 - Scope escapes, existing destinations, missing sources, and directory deletion are rejected. The scanner skips symlinks.
 - Deletes use system Trash. Automatic restoration of Trash deletions is unavailable.
-- The web API uses an in-memory task store. Durable task recovery and mandatory audit persistence remain release blockers.
+- The web API persists plans, approvals, timestamps, results and operation receipts in SQLite. Set `SENTINEL_TASK_DATABASE_PATH` to change its default `~/.sentinel/api-tasks.sqlite3` location. Run one API process per database: multi-worker deployment is unsupported. Interrupted jobs are flagged for manual review and never automatically replayed.
+- API execution requires a durable claim and a started receipt before each selected operation. Receipts identify attempted/completed operations; they are not tamper-proof audit evidence. A process crash between mutation and completion can leave an uncertain outcome requiring manual inspection. CLI execution still needs equivalent mandatory audit integration.
 - API undo returns an explicit unavailable response until persistence is integrated.
 - Local origin/host checks reduce browser cross-origin access; device pairing and race-resistant filesystem operations still need implementation.
 - Desktop installers are placeholders. Signed release artifacts are not available.

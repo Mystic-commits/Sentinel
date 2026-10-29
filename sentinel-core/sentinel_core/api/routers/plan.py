@@ -114,6 +114,9 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             )
 
         except Exception as e:
+            from ..memory import save_task
+
+            save_task(task_id, {"state": TaskState.FAILED, "error": str(e)})
             logger.error(f"Planning failed: {e}")
             await ws_manager.broadcast(
                 WebSocketEvent(
@@ -123,6 +126,10 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
                     data={"error": str(e)},
                 )
             )
+
+    from ..memory import save_task
+
+    save_task(task_id, {"state": TaskState.PLANNING})
 
     # Start background task
     background_tasks.add_task(perform_planning, task_id, request.path)

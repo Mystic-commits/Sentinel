@@ -30,6 +30,9 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info("Sentinel API starting up...")
+    from .memory import task_store
+
+    task_store.recover_interrupted()
     await ws_manager.startup()
     logger.info("Sentinel API ready")
 
@@ -97,9 +100,19 @@ async def health_check():
         GET /api/health
     """
     # TODO: Check database connection
-    db_connected = True
+    from .memory import task_store
 
-    return HealthResponse(status="healthy", version="0.1.0", database_connected=db_connected)
+    try:
+        with task_store.connect() as db:
+            db_connected = db.execute("SELECT 1").fetchone()[0] == 1
+    except Exception:
+        db_connected = False
+
+    return HealthResponse(
+        status="healthy" if db_connected else "degraded",
+        version="0.1.0",
+        database_connected=db_connected,
+    )
 
 
 if __name__ == "__main__":

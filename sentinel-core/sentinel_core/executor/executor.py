@@ -23,6 +23,7 @@ def execute_plan(
     plan: PlanSchema,
     approved_actions: Optional[List[int]] = None,
     db_session: Optional[Session] = None,
+    audit=None,
 ) -> ExecutionResult:
     """
     Execute a validated plan with logging and error handling.
@@ -138,6 +139,8 @@ def execute_plan(
         # Step 2: Execute file actions
         for action in actions_to_execute:
             try:
+                if audit:
+                    audit(action, "started")
                 # Execute the appropriate operation
                 if action.type == ActionType.MOVE:
                     _move_file(action.source_path, action.destination_path)
@@ -156,6 +159,8 @@ def execute_plan(
 
                 successful_actions += 1
                 completed_operations.append(action)
+                if audit:
+                    audit(action, "completed")
 
                 if logger:
                     log_entry = logger.log_action(
