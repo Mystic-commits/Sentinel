@@ -1,11 +1,24 @@
 from pathlib import Path
 
+import pytest
+from pydantic import SecretStr
+
+from sentinel_core.api.config import settings
 from fastapi.testclient import TestClient
 
 from sentinel_core.api.main import app
 from sentinel_core.api.memory import task_store
 from sentinel_core.models.enums import ActionType, TaskState
 from sentinel_core.models.planner import PlanAction, PlanSchema
+
+
+@pytest.fixture(autouse=True)
+def configure_access(monkeypatch):
+    monkeypatch.setattr(settings, "access_token", SecretStr("a" * 64))
+
+
+def authorized_client():
+    return TestClient(app, base_url="http://localhost", headers={"Authorization": "Bearer " + "a" * 64})
 
 
 def move(source: Path, destination: Path) -> PlanAction:
@@ -30,7 +43,7 @@ def test_execution_changes_only_approved_files_and_rejects_replay(tmp_path, monk
         "authorized_root": str(tmp_path.resolve()),
     })
     payload = {"task_id": plan.task_id, "approved_action_indices": [0]}
-    with TestClient(app) as client:
+    with authorized_client() as client:
         assert client.post("/api/execute", json=payload).status_code == 200
         assert client.post("/api/execute", json=payload).status_code == 409
 
@@ -57,7 +70,7 @@ def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
         "state": TaskState.REVIEW,
         "authorized_root": str(root.resolve()),
     })
-    with TestClient(app) as client:
+    with authorized_client() as client:
         response = client.post(
             "/api/execute", json={"task_id": plan.task_id, "approved_action_indices": [0]}
         )
@@ -76,7 +89,7 @@ def test_plan_falls_back_to_moves_inside_selected_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(PlannerAgent, "create_plan", unavailable)
     source = tmp_path / "notes.txt"
     source.write_text("local test data")
-    with TestClient(app) as client:
+    with authorized_client() as client:
         response = client.post("/api/plan", json={"path": str(tmp_path)})
         assert response.status_code == 200
         task_id = response.json()["task_id"]

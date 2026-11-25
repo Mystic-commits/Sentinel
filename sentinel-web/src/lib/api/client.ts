@@ -1,3 +1,5 @@
+import { getAccessToken } from './access';
+
 /**
  * API Client
  * 
@@ -23,6 +25,7 @@ class APIClient {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                Authorization: `Bearer ${getAccessToken()}`,
                 ...options.headers,
             },
         });

@@ -5,6 +5,8 @@ WebSocket endpoint for real-time event streaming with enhanced event types.
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from ..auth import EVENT_PROTOCOL, authorized
+from ..config import settings
 from ..websocket.manager import ws_manager
 import logging
 import uuid
@@ -55,18 +57,29 @@ async def websocket_endpoint(websocket: WebSocket):
             console.log('Connected to Sentinel WebSocket');
         };
     """
+    origin = websocket.headers.get("origin")
+    protocols = websocket.scope.get("subprotocols", [])
+    if (
+        (origin is not None and origin not in settings.allowed_origins)
+        or len(protocols) != 2
+        or protocols[0] != EVENT_PROTOCOL
+        or not protocols[1].startswith("auth.")
+        or not authorized(protocols[1][5:])
+    ):
+        await websocket.close(code=1008)
+        return
+
     client_id = str(uuid.uuid4())
     
     # Connect with client ID
-    await ws_manager.connect(websocket, client_id)
+    await ws_manager.connect(websocket, client_id, subprotocol=EVENT_PROTOCOL)
     logger.info(f"WebSocket client {client_id} connected")
     
     try:
         # Keep connection alive
         # Client can send messages, but we primarily broadcast to them
         while True:
-            data = await websocket.receive_text()
-            logger.debug(f"WebSocket received from {client_id}: {data}")
+            await websocket.receive_text()
             
             # Optional: Handle client messages (e.g., subscriptions, filters)
             # For now, we just keep the connection alive

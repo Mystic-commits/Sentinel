@@ -4,7 +4,8 @@ Sentinel API - FastAPI Application
 Production-grade REST API with WebSocket support for real-time task updates.
 """
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -12,6 +13,7 @@ import logging
 from .routers import scan, plan, preview, execute, undo, tasks, websocket
 from .websocket.manager import ws_manager
 from .config import settings
+from .auth import require_access
 from .models.responses import HealthResponse
 
 # Configure logging
@@ -61,13 +63,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Loopback host validation also applies to WebSocket handshakes.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
+
 # Include routers
-app.include_router(scan.router, prefix=settings.api_prefix, tags=["scan"])
-app.include_router(plan.router, prefix=settings.api_prefix, tags=["plan"])
-app.include_router(preview.router, prefix=settings.api_prefix, tags=["preview"])
-app.include_router(execute.router, prefix=settings.api_prefix, tags=["execute"])
-app.include_router(undo.router, prefix=settings.api_prefix, tags=["undo"])
-app.include_router(tasks.router, prefix=settings.api_prefix, tags=["tasks"])
+app.include_router(scan.router, prefix=settings.api_prefix, dependencies=[Depends(require_access)], tags=["scan"])
+app.include_router(plan.router, prefix=settings.api_prefix, dependencies=[Depends(require_access)], tags=["plan"])
+app.include_router(preview.router, prefix=settings.api_prefix, dependencies=[Depends(require_access)], tags=["preview"])
+app.include_router(execute.router, prefix=settings.api_prefix, dependencies=[Depends(require_access)], tags=["execute"])
+app.include_router(undo.router, prefix=settings.api_prefix, dependencies=[Depends(require_access)], tags=["undo"])
+app.include_router(tasks.router, prefix=settings.api_prefix, dependencies=[Depends(require_access)], tags=["tasks"])
 app.include_router(websocket.router, tags=["websocket"])
 
 

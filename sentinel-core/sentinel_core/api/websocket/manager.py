@@ -69,7 +69,7 @@ class WebSocketManager:
         
         logger.info("WebSocketManager shutdown complete")
     
-    async def connect(self, websocket: WebSocket, client_id: Optional[str] = None) -> str:
+    async def connect(self, websocket: WebSocket, client_id: Optional[str] = None, *, subprotocol: str | None = None) -> str:
         """
         Accept and register a new WebSocket connection.
         
@@ -83,7 +83,7 @@ class WebSocketManager:
         if client_id is None:
             client_id = str(uuid.uuid4())
         
-        await websocket.accept()
+        await websocket.accept(subprotocol=subprotocol)
         
         async with self._lock:
             self.active_connections[client_id] = websocket

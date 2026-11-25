@@ -9,6 +9,8 @@ Use a disposable folder with copies of files. Start the backend and dashboard in
 ```sh
 cd sentinel-core
 poetry install
+export SENTINEL_ACCESS_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+printf '%s\n' "$SENTINEL_ACCESS_TOKEN"
 poetry run uvicorn sentinel_core.api.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -18,7 +20,7 @@ npm ci
 npm run dev
 ```
 
-Open [the local dashboard](http://localhost:3000/dashboard), enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope. The dashboard's description and mode controls are still preview UI and do not drive planning.
+Open [the local dashboard](http://localhost:3000/dashboard), enter the access token printed in the backend terminal, then enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope. The dashboard's description and mode controls are still preview UI and do not drive planning.
 
 Use `poetry run sentinel --help` from `sentinel-core` to inspect the CLI. Download availability is listed on the [public site](https://sentinel-ten-black.vercel.app/download).
 
@@ -33,7 +35,7 @@ Use `poetry run sentinel --help` from `sentinel-core` to inspect the CLI. Downlo
 
 ## Release status
 
-Run the development service on loopback only. HTTP and WebSocket authentication, durable task history and undo, stale-file detection, filesystem race handling, and resource limits need further work. The developer dashboard can apply selected moves and renames. Its task state lives in memory, and API undo returns a feature-unavailable error. Signed desktop installers and a supported package-registry installation remain release milestones.
+Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The experimental desktop launcher inherits the token when launched from the configured shell. Automated desktop pairing, per-session event isolation, durable task history and undo, stale-file detection, filesystem race handling, and resource limits need further work. The developer dashboard can apply selected moves and renames. Its task state lives in memory, and API undo returns a feature-unavailable error. Signed desktop installers and a supported package-registry installation remain release milestones.
 
 ## Checks
 
