@@ -78,7 +78,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             pipeline = CleanPCPipeline(planner, safety, executor)
             
             result = await asyncio.to_thread(
-                lambda: asyncio.run(pipeline.scan_and_plan(task_id, target_dirs=[path]))
+                lambda: asyncio.run(pipeline.scan_and_plan(task_id, target_dirs=[path], scoped_moves_only=True))
             )
 
             # Extract results

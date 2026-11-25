@@ -65,3 +65,27 @@ def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
     assert response.status_code == 409
     assert source.read_text() == "keep me"
     assert not destination.exists()
+
+
+def test_plan_falls_back_to_moves_inside_selected_folder(tmp_path, monkeypatch):
+    from sentinel_core.planner.planner_agent import PlannerAgent
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("Model unavailable in test")
+
+    monkeypatch.setattr(PlannerAgent, "create_plan", unavailable)
+    source = tmp_path / "notes.txt"
+    source.write_text("local test data")
+    with TestClient(app) as client:
+        response = client.post("/api/plan", json={"path": str(tmp_path)})
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+        try:
+            plan = task_store[task_id]["plan"]
+            assert task_store[task_id]["state"] == TaskState.REVIEW
+            assert len(plan.actions) == 1
+            assert Path(plan.actions[0].source_path) == source
+            assert Path(plan.actions[0].destination_path).is_relative_to(tmp_path)
+            assert source.exists()
+        finally:
+            task_store.pop(task_id, None)

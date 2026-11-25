@@ -61,7 +61,8 @@ class CleanPCPipeline:
         task_id: str,
         target_dirs: Optional[List[str]] = None,
         preferences: Optional[PreferencesSchema] = None,
-        max_depth: int = 3
+        max_depth: int = 3,
+        scoped_moves_only: bool = False
     ) -> Dict[str, Any]:
         """
         Scan directories and generate a cleanup plan.
@@ -96,7 +97,7 @@ class CleanPCPipeline:
         
         for dir_path in target_dirs:
             try:
-                scanner = Scanner(dir_path, max_depth=max_depth)
+                scanner = Scanner(dir_path, max_depth=max_depth, include_previews=not scoped_moves_only)
                 scan_result = scanner.scan()
                 all_files.extend(scan_result.files)
                 scan_errors.extend(scan_result.errors)
@@ -130,6 +131,33 @@ class CleanPCPipeline:
         if preferences is None:
             preferences = PreferencesSchema()
         
+        selected_root = Path(target_dirs[0]).resolve() if len(target_dirs) == 1 else None
+
+        def fallback():
+            if scoped_moves_only and selected_root is not None:
+                from sentinel_core.models.enums import ActionType
+                from sentinel_core.models.planner import PlanAction
+
+                actions = []
+                reserved_destinations = set()
+                for file in all_files:
+                    if file.file_type.value in ("unknown", "code", "executable"):
+                        continue
+                    destination = selected_root / file.file_type.value / file.name
+                    if destination in reserved_destinations or destination.exists():
+                        continue
+                    reserved_destinations.add(destination)
+                    actions.append(PlanAction(
+                        type=ActionType.MOVE,
+                        source_path=file.path,
+                        destination_path=str(destination),
+                        reason=f"Group {file.file_type.value} files",
+                        confidence=0.75,
+                    ))
+                return PlanSchema(task_id=task_id, scope_path=str(selected_root),
+                                  actions=actions, summary="Grouped files by type using local rules")
+            return self._create_fallback_plan(task_id, rule_matches, classifications)
+
         try:
             plan = self.planner.create_plan(
                 task_id=task_id,
@@ -140,10 +168,23 @@ class CleanPCPipeline:
         except Exception as e:
             logger.error(f"Failed to generate plan: {e}")
             # Fallback: create a simple plan from rule matches
-            plan = self._create_fallback_plan(task_id, rule_matches, classifications)
+            plan = fallback()
         
         if len(target_dirs) == 1:
             plan = plan.model_copy(update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id})
+
+        if scoped_moves_only:
+            from sentinel_core.models.enums import ActionType
+
+            file_paths = {file.path for file in all_files}
+            plan = plan.model_copy(update={
+                "actions": [
+                    action for action in plan.actions
+                    if action.type in (ActionType.MOVE, ActionType.RENAME)
+                    and action.source_path in file_paths
+                ],
+                "folders_to_create": [],
+            })
 
         # 7. Safety validation
         logger.info("Validating plan for safety...")
@@ -154,7 +195,7 @@ class CleanPCPipeline:
             logger.info("Falling back to rule-based plan...")
             
             # Try fallback plan instead of aborting
-            plan = self._create_fallback_plan(task_id, rule_matches, classifications)
+            plan = fallback()
             
             logger.info(f"Fallback plan created with {len(plan.actions)} actions, {len(plan.folders_to_create)} folders")
             

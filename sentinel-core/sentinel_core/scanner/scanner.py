@@ -10,9 +10,10 @@ from sentinel_core.models.filesystem import FileMetadata, ScanResult
 from sentinel_core.scanner import config
 
 class Scanner:
-    def __init__(self, root_path: str, max_depth: int = config.MAX_SCAN_DEPTH):
+    def __init__(self, root_path: str, max_depth: int = config.MAX_SCAN_DEPTH, *, include_previews: bool = True):
         self.root_path = Path(root_path).resolve()
         self.max_depth = max_depth
+        self.include_previews = include_previews
         self.ignored_dirs = config.IGNORED_DIRS
         self.text_extensions = config.TEXT_EXTENSIONS
         self.pdf_extensions = config.PDF_EXTENSIONS
@@ -65,6 +66,9 @@ class Scanner:
                 if entry.name in self.ignored_dirs or entry.name.startswith('.'):
                     continue
 
+                if entry.is_symlink() or getattr(entry, "is_junction", lambda: False)():
+                    continue
+
                 if entry.is_dir():
                     yield from self._safe_walk(entry, current_depth + 1)
                 elif entry.is_file():
@@ -84,7 +88,7 @@ class Scanner:
         
         preview = None
         # Only attempt preview if small enough
-        if stat.st_size < config.MAX_FILE_SIZE_PREVIEW:
+        if self.include_previews and stat.st_size < config.MAX_FILE_SIZE_PREVIEW:
             preview = self._get_preview(path, file_type)
 
         return FileMetadata(
@@ -95,13 +99,13 @@ class Scanner:
             created_at=datetime.fromtimestamp(stat.st_ctime),
             modified_at=datetime.fromtimestamp(stat.st_mtime),
             file_type=file_type,
-            preview_text=preview
+            preview_text=preview[:150] if preview else None
             # hash is expensive, so we skip it for default scan
         )
 
     def _determine_file_type(self, path: Path) -> FileType:
         ext = path.suffix.lower()
-        if ext in self.text_extensions:
+        if ext in self.text_extensions or ext in self.pdf_extensions or ext in {".doc", ".docx", ".odt", ".rtf"}:
             return FileType.DOCUMENT # Broadly code/text is document for organization
         if ext in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff'}:
             return FileType.IMAGE

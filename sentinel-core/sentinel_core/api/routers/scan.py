@@ -44,7 +44,7 @@ async def perform_scan(scan_id: str, path: str, max_depth: int):
         
         # Perform scan in thread pool to prevent blocking
             
-        result = await asyncio.to_thread(Scanner(path, max_depth=max_depth).scan)
+        result = await asyncio.to_thread(Scanner(path, max_depth=max_depth, include_previews=False).scan)
         
         
         total_files = len(result.files)
