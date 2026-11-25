@@ -1,5 +1,7 @@
 'use client';
 
+import DiffViewer from '../DiffViewer';
+import type { OperationStatus } from '../DiffViewer/ActionItem';
 import { api } from '@/lib/api/client';
 
 import { useStore, useActiveTask } from '@/hooks/useStore';
@@ -8,32 +10,24 @@ import { useEffect, useRef, useState } from 'react';
 
 type Tab = 'logs' | 'preview' | 'diffs';
 
-const TABS: Tab[] = ['logs', 'preview', 'diffs'];
+const TABS: Tab[] = ['diffs', 'preview', 'logs'];
 
 export default function RightPanel() {
     const { activePanel, setActivePanel } = useStore();
     const activeTask = useActiveTask();
 
     return (
-        <div className="flex min-h-64 min-w-0 flex-col bg-[#101c18]">
+        <div className="workspace-panel flex min-h-56 min-w-0 flex-col">
             {/* Tabs */}
-            <div className="flex h-12 border-b border-edge">
+            <div className="flex gap-1 border-b border-edge px-2 sm:px-4">
                 {TABS.map((tab) => (
                     <button
                         key={tab}
+                        aria-pressed={activePanel === tab}
                         onClick={() => setActivePanel(tab)}
-                        className={`
-                            flex-1 text-[13px] font-medium capitalize transition-colors relative
-                            ${activePanel === tab
-                                ? 'text-txt-primary'
-                                : 'text-txt-faint hover:text-txt-secondary'
-                            }
-                        `}
+                        className="workspace-tab px-3 py-3 text-sm font-bold text-txt-secondary"
                     >
-                        {tab === 'diffs' ? 'Operations' : tab}
-                        {activePanel === tab && (
-                            <div className="absolute bottom-0 inset-x-3 h-[2px] bg-txt-primary rounded-full" />
-                        )}
+                        {tab === 'diffs' ? 'Review' : tab === 'logs' ? 'Activity' : 'Preview'}
                     </button>
                 ))}
             </div>
@@ -42,7 +36,7 @@ export default function RightPanel() {
             <div className="min-w-0 flex-1">
                 {activePanel === 'logs' && <LogsPanel task={activeTask} />}
                 {activePanel === 'preview' && <PreviewPanel task={activeTask} />}
-                {activePanel === 'diffs' && <DiffsPanel task={activeTask} />}
+                {activePanel === 'diffs' && <DiffsPanel key={activeTask?.id} task={activeTask} />}
             </div>
         </div>
     );
@@ -56,7 +50,7 @@ function LogsPanel({ task }: { task: any }) {
     }, [task?.logs]);
 
     if (!task) {
-        return <EmptyState message="No active task" />;
+        return <EmptyState message="Scan a folder to review its proposed moves." />;
     }
 
     return (
@@ -78,9 +72,9 @@ function LogsPanel({ task }: { task: any }) {
 function LogLine({ log }: { log: LogEntry }) {
     const colors = {
         info: 'text-txt-secondary',
-        success: 'text-emerald-400',
-        warning: 'text-amber-400',
-        error: 'text-red-400',
+        success: 'text-green-800',
+        warning: 'text-amber-800',
+        error: 'text-red-700',
     };
 
     return (
@@ -132,31 +126,40 @@ function PreviewPanel({ task }: { task: any }) {
 function DiffsPanel({ task }: { task: any }) {
     const { updateOperationStatus, bulkUpdateOperations } = useStore();
     const [error, setError] = useState<string | null>(null);
+    const [applying, setApplying] = useState(false);
 
-    if (!task) return <EmptyState message="No active task" />;
+    if (!task) return <EmptyState message="Scan a folder to review its proposed moves." />;
     if (!task.plan?.operations || task.plan.operations.length === 0) {
-        return <EmptyState message="Operations appear after planning" />;
+        return <EmptyState message={task.state === "review" ? "No moves were proposed for this folder." : "Proposed moves will appear here when planning finishes."} />;
     }
 
-    const DiffViewer = require('../DiffViewer').default;
 
     return (
         <>
-        {error && <p role="alert" className="p-3">{error}</p>}
+        {error && <p role="alert" className="p-3 text-sm text-red-700">{error}</p>}
         <DiffViewer
             operations={task.plan.operations}
-            onUpdateOperation={(opId: string, status: any) =>
+            locked={applying || task.state !== 'review'}
+            onUpdateOperation={(opId: string, status: OperationStatus) =>
                 updateOperationStatus(task.id, opId, status)
             }
-            onBulkUpdate={(status: any) =>
+            onBulkUpdate={(status: OperationStatus) =>
                 bulkUpdateOperations(task.id, status)
             }
-            onExecute={() => {
+            onExecute={async () => {
+                if (applying || task.state !== 'review') return;
                 const approved = task.plan.operations.flatMap(
                     (operation: { status: string }, index: number) => operation.status === 'approved' ? [index] : []
                 );
                 setError(null);
-                api.executeTask(task.id, approved).catch((error: Error) => setError(error.message));
+                setApplying(true);
+                try {
+                    await api.executeTask(task.id, approved);
+                } catch (error) {
+                    setError(error instanceof Error ? error.message : 'Could not apply moves.');
+                } finally {
+                    setApplying(false);
+                }
             }}
         />
         </>
@@ -165,7 +168,7 @@ function DiffsPanel({ task }: { task: any }) {
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex min-h-36 items-center justify-center px-5 text-center">
             <p className="text-[13px] text-txt-faint">{message}</p>
         </div>
     );

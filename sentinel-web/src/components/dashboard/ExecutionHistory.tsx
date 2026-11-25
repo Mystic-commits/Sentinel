@@ -35,7 +35,7 @@ export default function ExecutionHistory() {
     }
 
     return (
-        <section aria-label="Execution history" className="border-b border-edge px-8 py-3">
+        <section aria-label="Execution history" className="px-1 py-2">
             <button className="text-sm underline" disabled={busy} onClick={() => void update()}>
                 {receipts ? 'Refresh execution history' : 'Show execution history'}
             </button>

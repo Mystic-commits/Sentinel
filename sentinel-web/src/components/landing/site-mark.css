@@ -1,0 +1,4 @@
+.site-mark { display: grid; align-content: center; gap: 2px; flex: none; width: 29px; height: 29px; padding: 6px; border-radius: 8px; background: #263bc0; }
+.site-mark i { display: block; height: 4px; background: #fff; clip-path: polygon(0 0, 100% 0, 81% 100%, 0 100%); }
+.site-mark i:first-child { width: 64%; }
+.site-mark i:last-child { margin-left: 3px; }

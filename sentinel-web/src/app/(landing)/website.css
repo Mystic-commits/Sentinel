@@ -19,10 +19,6 @@
 .site-nav nav a:hover, .site-footer nav a:hover, .site-text-link:hover { color: var(--blue); }
 .site-wordmark, .sample-app { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; }
 .site-wordmark { font-size: 21px; letter-spacing: -.055em; }
-.site-mark { display: grid; align-content: center; gap: 2px; flex: none; width: 29px; height: 29px; padding: 6px; border-radius: 8px; background: var(--blue); }
-.site-mark i { display: block; height: 4px; background: #fff; clip-path: polygon(0 0, 100% 0, 81% 100%, 0 100%); }
-.site-mark i:first-child { width: 64%; }
-.site-mark i:last-child { margin-left: 3px; }
 .site-button {
     display: inline-flex; align-items: center; justify-content: center; gap: 9px;
     flex: none; padding: 13px 17px; border-radius: 8px;

@@ -7,6 +7,7 @@ import ConfirmationModal from './ConfirmationModal';
 
 interface DiffViewerProps {
     operations: FileOperation[];
+    locked: boolean;
     onUpdateOperation: (id: string, status: OperationStatus) => void;
     onBulkUpdate: (status: OperationStatus) => void;
     onExecute: () => void;
@@ -14,6 +15,7 @@ interface DiffViewerProps {
 
 export default function DiffViewer({
     operations,
+    locked,
     onUpdateOperation,
     onBulkUpdate,
     onExecute
@@ -71,6 +73,7 @@ export default function DiffViewer({
     return (
         <div className="h-full flex flex-col">
             <BulkActions
+                locked={locked}
                 totalOperations={stats.total}
                 pendingCount={stats.pending}
                 approvedCount={stats.approved}
@@ -80,11 +83,12 @@ export default function DiffViewer({
                 onExecute={onExecute}
             />
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            <div className="min-w-0 flex-1">
                 {operations.map((operation) => (
                     <ActionItem
                         key={operation.id}
                         operation={operation}
+                        locked={locked}
                         onApprove={handleApprove}
                         onReject={handleReject}
                     />

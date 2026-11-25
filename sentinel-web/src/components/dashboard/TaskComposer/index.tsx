@@ -38,21 +38,21 @@ export default function TaskComposer() {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="border-b border-edge px-5 py-5 sm:px-8">
+        <form onSubmit={handleSubmit} className="workspace-panel mb-3 p-4 sm:p-5">
             <label htmlFor="folder-path" className="mb-2 block text-sm font-semibold">Folder path</label>
             <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-[#405349] bg-[#111d18] px-3">
-                    <FolderOpen size={18} className="shrink-0 text-[#a6edc3]" aria-hidden />
+                <div className="flex min-w-0 flex-1 items-center gap-3 workspace-input px-3">
+                    <FolderOpen size={18} className="shrink-0 text-[#263bc0]" aria-hidden />
                     <input id="folder-path" type="text" required value={folder} autoComplete="off"
                         onChange={event => setFolder(event.target.value)}
-                        className="min-w-0 flex-1 bg-transparent px-1 py-3 text-base text-[#edf6ef]" />
+                        className="min-w-0 flex-1 bg-transparent px-1 py-3 text-base text-[#141721]" />
                 </div>
                 <button type="submit" disabled={!folder.trim() || isSubmitting}
-                    className="rounded-lg bg-[#a6edc3] px-4 py-3 text-sm font-semibold text-[#12241c] disabled:opacity-60">
+                    className="workspace-action">
                     {isSubmitting ? 'Starting scan…' : 'Scan and plan'}
                 </button>
             </div>
-            {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
+            {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         </form>
     );
 }

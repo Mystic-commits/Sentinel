@@ -11,18 +11,20 @@ export default function DashboardPage() {
     const activeTask = useActiveTask();
 
     return (
-        <div className="flex min-h-dvh bg-[#0b1312] lg:h-dvh lg:overflow-hidden">
-            <div className="hidden lg:block"><Sidebar /></div>
-            <main className="min-w-0 flex-1 lg:overflow-y-auto">
-                <div className="mx-auto max-w-6xl">
-                    <header className="flex items-center justify-between border-b border-edge px-5 py-3 sm:px-8">
-                        <h1 className="text-lg font-semibold tracking-tight">File workspace</h1>
-                        <span className="rounded-md bg-[#172b21] px-2 py-1 text-xs font-medium text-[#adf1c7]">Local session</span>
+        <div className="min-h-dvh lg:grid lg:grid-cols-[245px_minmax(0,1fr)]">
+            <Sidebar />
+            <main className="min-w-0">
+                <div className="mx-auto max-w-6xl px-4 pb-10 sm:px-8">
+                    <header className="flex items-center justify-between gap-3 py-5 sm:py-7">
+                        <h1 className="text-3xl font-extrabold tracking-[-0.055em]">File workspace</h1>
                     </header>
-                    <TaskComposer />
-                    <ExecutionHistory />
+                    <details open={activeTask?.state !== 'review'} className="mb-2">
+                        <summary className="mb-2 cursor-pointer text-sm font-bold">Scan a folder</summary>
+                        <TaskComposer />
+                    </details>
+                    <div className="mb-5"><ExecutionHistory /></div>
                     {activeTask && (
-                        <details className="border-b border-edge px-5 py-3 text-sm sm:px-8">
+                        <details className="mb-4 text-sm text-txt-secondary">
                             <summary className="cursor-pointer">Task progress</summary>
                             <Timeline currentState={activeTask.state} progress={activeTask.progress} />
                         </details>
