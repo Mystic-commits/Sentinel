@@ -64,20 +64,13 @@ class APIClient {
         });
     }
 
-    // Approve plan
-    async approvePlan(taskId: string) {
-        return this.request(`/plan/${taskId}/approve-all`, {
-            method: 'POST',
-        });
-    }
-
     // Execute task
-    async executeTask(taskId: string) {
+    async executeTask(taskId: string, approvedActionIndices: number[]) {
         return this.request('/execute', {
             method: 'POST',
             body: JSON.stringify({
                 task_id: taskId,
-                skip_safety: false, // Always false
+                approved_action_indices: approvedActionIndices,
             }),
         });
     }

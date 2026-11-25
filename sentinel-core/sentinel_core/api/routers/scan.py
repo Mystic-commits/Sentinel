@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from ..models.requests import ScanRequest
 from ..models.responses import ScanResponse
 from ..websocket.manager import ws_manager
-from sentinel_core.scanner import scan_directory
+from sentinel_core.scanner.scanner import Scanner
 from sentinel_core.models.enums import TaskState
 import uuid
 from datetime import datetime
@@ -28,16 +28,12 @@ async def perform_scan(scan_id: str, path: str, max_depth: int):
         path: Directory path to scan
         max_depth: Maximum directory depth
     """
-    with open("/Users/Mystic/Desktop/trial and error/Sentinel/backend_debug.log", "a") as f:
-        f.write(f"DEBUG: perform_scan started for {scan_id} at {path}\n")
     
     import asyncio
     from ..models.events import WebSocketEvent, EventType
     
     try:
         # Broadcast scanning started
-        with open("/Users/Mystic/Desktop/trial and error/Sentinel/backend_debug.log", "a") as f:
-            f.write(f"DEBUG: Broadcasting SCANNING event for {scan_id}\n")
             
         await ws_manager.broadcast(WebSocketEvent(
             event_type=EventType.SCANNING,
@@ -47,20 +43,14 @@ async def perform_scan(scan_id: str, path: str, max_depth: int):
         ))
         
         # Perform scan in thread pool to prevent blocking
-        with open("/Users/Mystic/Desktop/trial and error/Sentinel/backend_debug.log", "a") as f:
-            f.write(f"DEBUG: Starting scan_directory in thread for {scan_id}\n")
             
-        result = await asyncio.to_thread(scan_directory, path)
+        result = await asyncio.to_thread(Scanner(path, max_depth=max_depth).scan)
         
-        with open("/Users/Mystic/Desktop/trial and error/Sentinel/backend_debug.log", "a") as f:
-            f.write(f"DEBUG: scan_directory completed for {scan_id}. Found {len(result.files)} files.\n")
         
         total_files = len(result.files)
         total_size = sum(f.size_bytes for f in result.files)
         
         # Broadcast complete
-        with open("/Users/Mystic/Desktop/trial and error/Sentinel/backend_debug.log", "a") as f:
-            f.write(f"DEBUG: Broadcasting SCAN_COMPLETE event for {scan_id}\n")
             
         await ws_manager.broadcast(WebSocketEvent(
             event_type=EventType.SCAN_COMPLETE,
@@ -76,10 +66,6 @@ async def perform_scan(scan_id: str, path: str, max_depth: int):
         logger.info(f"Scan complete: {scan_id} - {total_files} files")
         
     except Exception as e:
-        with open("/Users/Mystic/Desktop/trial and error/Sentinel/backend_debug.log", "a") as f:
-            f.write(f"DEBUG: ERROR in perform_scan: {e}\n")
-            import traceback
-            traceback.print_exc(file=f)
             
         logger.error(f"Scan failed: {scan_id} - {e}")
         await ws_manager.broadcast(WebSocketEvent(

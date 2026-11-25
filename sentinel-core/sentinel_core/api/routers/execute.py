@@ -62,46 +62,34 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
     
     plan = task_data["plan"]
     
-    # CRITICAL: Safety validation
-    from sentinel_core.safety import SafetyValidator
-    validator = SafetyValidator()
-    validation_result = validator.validate_plan(plan)
-    
+    from pathlib import Path
     import asyncio
     from ..models.events import WebSocketEvent, EventType
-    
-    if not validation_result.is_safe:
-        logger.error(f"Safety validation failed for {request.task_id}: {validation_result.errors}")
-        await ws_manager.broadcast(WebSocketEvent(
-            event_type=EventType.TASK_FAILED,
-            task_id=request.task_id,
-            message="Plan failed safety validation",
-            data={"errors": validation_result.errors}
-        ))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Plan failed safety validation: {validation_result.errors}"
-        )
-    
-    # Broadcast safety passed
-    await ws_manager.broadcast(WebSocketEvent(
-        event_type=EventType.WAITING_FOR_APPROVAL, # Or generic info
-        task_id=request.task_id,
-        message="Safety validation passed. Starting execution...",
-        data={}
-    ))
-    
+    from sentinel_core.safety import SafetyValidator
+
+    if task_data.get("state") != TaskState.REVIEW:
+        raise HTTPException(status_code=409, detail="Task is no longer available for review")
+
+    indices = request.approved_action_indices
+    if len(set(indices)) != len(indices) or any(i < 0 or i >= len(plan.actions) for i in indices):
+        raise HTTPException(status_code=422, detail="Invalid approved action indices")
+
+    authorized_root = task_data.get("authorized_root")
+    if not authorized_root or Path(plan.scope_path).resolve() != Path(authorized_root):
+        raise HTTPException(status_code=409, detail="Plan scope does not match the selected folder")
+
+    plan = plan.model_copy(update={
+        "actions": [plan.actions[i] for i in sorted(indices)],
+        "folders_to_create": [],
+    }, deep=True)
+    if not SafetyValidator().validate_plan(plan).is_safe:
+        raise HTTPException(status_code=409, detail="The approved actions failed safety validation")
+
+    save_task(request.task_id, {"state": TaskState.EXECUTING})
+
     async def perform_execution(task_id: str, plan):
         try:
             from sentinel_core.executor.executor import execute_plan as do_execute
-            
-            logger.warning(f"[EXEC] Starting execution for {task_id}")
-            logger.warning(f"[EXEC] Plan type: {type(plan).__name__}")
-            logger.warning(f"[EXEC] Plan has {len(plan.actions)} actions, {len(plan.folders_to_create)} folders")
-            
-            if plan.actions:
-                first = plan.actions[0]
-                logger.warning(f"[EXEC] First action: type={first.type}, source={first.source_path}, dest={first.destination_path}")
             
             # Broadcast start
             await ws_manager.broadcast(WebSocketEvent(
@@ -112,20 +100,23 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
             ))
             
             # Call the REAL executor directly — no pipeline, no class wrapper
-            result = do_execute(plan=plan)
+            result = await asyncio.to_thread(do_execute, plan)
             
             logger.warning(f"[EXEC] Result: succeeded={result.successful_actions}, failed={result.failed_actions}, error={result.error_message}")
             
-            # Broadcast complete
+            failed = bool(result.failed_actions or result.error_message)
+            state = TaskState.FAILED if failed else TaskState.COMPLETED
+
+            # Broadcast outcome
             await ws_manager.broadcast(WebSocketEvent(
-                event_type=EventType.TASK_COMPLETED,
+                event_type=EventType.TASK_FAILED if failed else EventType.TASK_COMPLETED,
                 task_id=task_id,
                 message=f"Execution completed: {result.successful_actions} succeeded, {result.failed_actions} failed",
                 data={"result": {"success": result.successful_actions, "failed": result.failed_actions, "error": result.error_message}, "progress": 100}
             ))
             
             # Update store
-            save_task(task_id, {"state": TaskState.COMPLETED, "result": {"success": result.successful_actions, "failed": result.failed_actions}})
+            save_task(task_id, {"state": state, "result": {"success": result.successful_actions, "failed": result.failed_actions}})
             
         except Exception as e:
             import traceback

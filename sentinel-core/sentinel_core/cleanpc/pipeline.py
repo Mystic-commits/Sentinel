@@ -142,6 +142,9 @@ class CleanPCPipeline:
             # Fallback: create a simple plan from rule matches
             plan = self._create_fallback_plan(task_id, rule_matches, classifications)
         
+        if len(target_dirs) == 1:
+            plan = plan.model_copy(update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id})
+
         # 7. Safety validation
         logger.info("Validating plan for safety...")
         validation_result = self.safety.validate_plan(plan)
@@ -155,6 +158,9 @@ class CleanPCPipeline:
             
             logger.info(f"Fallback plan created with {len(plan.actions)} actions, {len(plan.folders_to_create)} folders")
             
+            if len(target_dirs) == 1:
+                plan = plan.model_copy(update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id})
+
             # Validate fallback plan
             validation_result = self.safety.validate_plan(plan)
             

@@ -50,6 +50,7 @@ class ExecuteRequest(BaseModel):
     """Request to execute a plan."""
     
     task_id: str = Field(..., description="Task ID to execute")
+    approved_action_indices: list[int] = Field(min_length=1, max_length=10000)
     skip_safety: bool = Field(
         default=False,
         description="Skip safety validation (REJECTED - always validates)"

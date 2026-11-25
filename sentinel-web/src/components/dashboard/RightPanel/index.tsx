@@ -1,8 +1,10 @@
 'use client';
 
+import { api } from '@/lib/api/client';
+
 import { useStore, useActiveTask } from '@/hooks/useStore';
 import { LogEntry } from '@/lib/types/task';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Tab = 'logs' | 'preview' | 'diffs';
 
@@ -129,6 +131,7 @@ function PreviewPanel({ task }: { task: any }) {
 
 function DiffsPanel({ task }: { task: any }) {
     const { updateOperationStatus, bulkUpdateOperations } = useStore();
+    const [error, setError] = useState<string | null>(null);
 
     if (!task) return <EmptyState message="No active task" />;
     if (!task.plan?.operations || task.plan.operations.length === 0) {
@@ -138,6 +141,8 @@ function DiffsPanel({ task }: { task: any }) {
     const DiffViewer = require('../DiffViewer').default;
 
     return (
+        <>
+        {error && <p role="alert" className="p-3">{error}</p>}
         <DiffViewer
             operations={task.plan.operations}
             onUpdateOperation={(opId: string, status: any) =>
@@ -147,10 +152,14 @@ function DiffsPanel({ task }: { task: any }) {
                 bulkUpdateOperations(task.id, status)
             }
             onExecute={() => {
-                const { api } = require('@/lib/api/client');
-                api.executeTask(task.id).catch(console.error);
+                const approved = task.plan.operations.flatMap(
+                    (operation: { status: string }, index: number) => operation.status === 'approved' ? [index] : []
+                );
+                setError(null);
+                api.executeTask(task.id, approved).catch((error: Error) => setError(error.message));
             }}
         />
+        </>
     );
 }
 

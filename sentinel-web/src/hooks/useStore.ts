@@ -92,7 +92,7 @@ export const useStore = create<AppState>((set, get) => ({
         }),
     })),
 
-    bulkUpdateOperations: async (taskId, status) => {
+    bulkUpdateOperations: (taskId, status) => {
         // Optimistic update
         set((state) => ({
             tasks: state.tasks.map((task) => {
@@ -110,16 +110,6 @@ export const useStore = create<AppState>((set, get) => ({
             }),
         }));
 
-        // API Call
-        if (status === 'approved') {
-            try {
-                const { api } = require('@/lib/api/client');
-                await api.approvePlan(taskId);
-            } catch (error) {
-                console.error('Failed to approve plan:', error);
-                // Revert or show error (omitted for brevity)
-            }
-        }
     },
 }));
 

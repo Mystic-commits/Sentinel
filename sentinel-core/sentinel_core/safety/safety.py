@@ -7,10 +7,10 @@ from sentinel_core.safety.constants import PROTECTED_PATHS
 class SafetyValidationResult:
     def __init__(self, is_safe: bool, issues: List[str]):
         self.issues = issues
-        self.errors = [issue for issue in issues if "Cannot" in issue or "does not exist" in issue]
-        self.warnings = [issue for issue in issues if issue not in self.errors]
+        self.errors = issues
+        self.warnings = []
         # is_safe should be based on errors, not all issues (warnings OK)
-        self.is_safe = len(self.errors) == 0
+        self.is_safe = is_safe and not self.errors
 
     def __repr__(self):
         return f"SafetyValidationResult(is_safe={self.is_safe}, errors={self.errors}, warnings={self.warnings})"

@@ -6,6 +6,8 @@ import { useStore } from '@/hooks/useStore';
 import { api } from '@/lib/api/client';
 
 export default function TaskComposer() {
+    const [folder, setFolder] = useState('');
+    const [error, setError] = useState<string | null>(null);
     const [description, setDescription] = useState('');
     const [selectedMode, setSelectedMode] = useState<TaskMode>('file_organization');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,11 +15,12 @@ export default function TaskComposer() {
     const { addTask } = useStore();
 
     const handleSubmit = async () => {
-        if (!description.trim()) return;
+        if (!folder.trim() || !description.trim() || isSubmitting) return;
+        setError(null);
         setIsSubmitting(true);
 
         try {
-            const response = await api.createPlan(null, selectedMode, description) as any;
+            const response = await api.createPlan(null, selectedMode, description, folder.trim()) as any;
             const taskId = response.task_id;
             const now = new Date().toISOString();
 
@@ -38,7 +41,7 @@ export default function TaskComposer() {
 
             setDescription('');
         } catch (error) {
-            console.error('Failed to create task:', error);
+            setError(error instanceof Error ? error.message : 'Failed to create task');
         } finally {
             setIsSubmitting(false);
         }
@@ -55,6 +58,12 @@ export default function TaskComposer() {
         <div className="px-8 py-6 max-w-3xl mx-auto w-full">
             {/* Input area */}
             <div className="bg-surface-2 border border-edge rounded-xl p-4 hover:border-edge-hover transition-colors">
+                <label className="block text-sm">
+                    Folder path
+                    <input className="block w-full bg-surface-0 p-2" value={folder}
+                        onChange={(event) => setFolder(event.target.value)} />
+                </label>
+                {error && <p role="alert">{error}</p>}
                 <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -92,7 +101,7 @@ export default function TaskComposer() {
                     {/* Submit */}
                     <button
                         onClick={handleSubmit}
-                        disabled={!description.trim() || isSubmitting}
+                        disabled={!folder.trim() || !description.trim() || isSubmitting}
                         className="
                             h-9 px-5 rounded-lg text-[13px] font-semibold
                             bg-white text-black
