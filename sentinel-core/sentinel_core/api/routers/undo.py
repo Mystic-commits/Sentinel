@@ -1,43 +1,34 @@
-"""
-Undo Router
-
-Endpoint for undoing executed tasks.
-"""
+"""Undo and execution history for the local dashboard."""
 
 from fastapi import APIRouter, HTTPException
+
 from ..models.requests import UndoRequest
 from ..models.responses import UndoResponse
-from ..websocket.manager import ws_manager
+from ..receipts import history, undo_recorded
 from sentinel_core.models.enums import TaskState
-import logging
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
+@router.get("/history")
+def execution_history():
+    return history()
+
+
 @router.post("/undo", response_model=UndoResponse)
-async def undo(request: UndoRequest):
-    """
-    Undo a previously executed task.
-    
-    Reverses file operations from a completed task.
-    Note: Some operations (like permanent deletes) cannot be undone.
-    
-    Args:
-        request: Undo request with task_id
-        
-    Returns:
-        UndoResponse with undo status
-        
-    Raises:
-        HTTPException 404: If task not found
-        HTTPException 400: If task cannot be undone
-        
-    Example:
-        POST /api/undo
-        {
-            "task_id": "task-abc-123"
-        }
-    """
-    raise HTTPException(status_code=501, detail="API undo requires a durable execution journal")
+def undo(request: UndoRequest):
+    try:
+        result = undo_recorded(request.task_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Execution receipt not found") from error
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=409, detail="Undo blocked because the receipt or files changed") from error
+
+    failed = bool(result.failed_actions or result.error_message)
+    return UndoResponse(
+        task_id=request.task_id,
+        state=TaskState.FAILED if failed else TaskState.COMPLETED,
+        undone_operations=result.successful_actions if not failed else 0,
+        failed_operations=result.failed_actions,
+        message="Undo needs attention" if failed else "Files restored",
+    )

@@ -89,11 +89,23 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
     if not SafetyValidator().validate_plan(plan).is_safe:
         raise HTTPException(status_code=409, detail="The approved actions failed safety validation")
 
+    import sqlite3
+    from ..receipts import identity, record_start, run_recorded
+
+    try:
+        for action in plan.actions:
+            identity(action.source_path)
+        record_start(plan)
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=409, detail="A source is unavailable or is not a regular file") from error
+    except sqlite3.IntegrityError as error:
+        raise HTTPException(status_code=409, detail="This task already has an execution receipt") from error
+
     save_task(request.task_id, {"state": TaskState.EXECUTING})
 
     async def perform_execution(task_id: str, plan):
         try:
-            from sentinel_core.executor.executor import execute_plan as do_execute
+
             
             # Broadcast start
             await ws_manager.broadcast(WebSocketEvent(
@@ -104,7 +116,7 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
             ))
             
             # Call the REAL executor directly — no pipeline, no class wrapper
-            result = await asyncio.to_thread(do_execute, plan)
+            result = await asyncio.to_thread(run_recorded, plan)
             
             logger.warning(f"[EXEC] Result: succeeded={result.successful_actions}, failed={result.failed_actions}, error={result.error_message}")
             

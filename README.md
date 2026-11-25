@@ -35,10 +35,16 @@ Use `poetry run sentinel --help` from `sentinel-core` to inspect the CLI. Downlo
 
 ## Release status
 
-Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The experimental desktop launcher inherits the token when launched from the configured shell. Automated desktop pairing, per-session event isolation, durable task history and undo, stale-file detection, filesystem race handling, and resource limits need further work. The developer dashboard can apply selected moves and renames. Its task state lives in memory, and API undo returns a feature-unavailable error. Signed desktop installers and a supported package-registry installation remain release milestones.
+Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The experimental desktop launcher inherits the token when launched from the configured shell. Automated desktop pairing, per-session event isolation, stale-file detection before apply, filesystem race handling, and resource limits need further work. The developer dashboard can apply selected moves and renames. Pending plans live in memory. Completed dashboard moves have SQLite receipts. Use **Show execution history** to undo eligible moves after restarting the backend. Undo blocks if a file changed or an original path is occupied. Interrupted apply or undo receipts require manual inspection. Signed desktop installers and a supported package-registry installation remain release milestones.
 
 ## Checks
 
 From `sentinel-core`, run `poetry run pytest`. From `sentinel-web`, run `npm run type-check`, `npm run lint`, and `npm run build`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution information and [LICENSE](LICENSE) for license terms.
+
+## Public site search setup
+
+The static export includes canonical URLs, page-specific search metadata, a sitemap, and crawler instructions. It keeps the local dashboard out of search results. The canonical origin defaults to the existing Vercel site. If the production hostname changes, set `NEXT_PUBLIC_SITE_URL` before building.
+
+After deploying, submit `/sitemap.xml` in Google Search Console for the verified production property. Use the Page indexing and Performance reports to track discovery and search clicks.

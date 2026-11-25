@@ -1,5 +1,6 @@
 'use client';
 
+import ExecutionHistory from '@/components/dashboard/ExecutionHistory';
 import Sidebar from '@/components/dashboard/Sidebar';
 import TaskComposer from '@/components/dashboard/TaskComposer';
 import Timeline from '@/components/dashboard/Timeline';
@@ -18,6 +19,8 @@ export default function DashboardPage() {
                 <div className="border-b border-edge">
                     <TaskComposer />
                 </div>
+
+                <ExecutionHistory />
 
                 <div className="flex-1 overflow-y-auto">
                     {activeTask ? (

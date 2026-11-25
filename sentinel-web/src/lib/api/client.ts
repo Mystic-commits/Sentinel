@@ -88,9 +88,13 @@ class APIClient {
         return this.request(`/tasks/${id}`);
     }
 
+    async history() {
+        return this.request<{ task_id: string; state: string; created_at: string }[]>('/history');
+    }
+
     // Undo task
     async undoTask(taskId: string) {
-        return this.request('/undo', {
+        return this.request<{ message: string }>('/undo', {
             method: 'POST',
             body: JSON.stringify({ task_id: taskId }),
         });

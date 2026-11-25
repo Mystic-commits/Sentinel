@@ -13,7 +13,8 @@ from sentinel_core.models.planner import PlanAction, PlanSchema
 
 
 @pytest.fixture(autouse=True)
-def configure_access(monkeypatch):
+def configure_access(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "database_url", str(tmp_path / "receipts.db"))
     monkeypatch.setattr(settings, "access_token", SecretStr("a" * 64))
 
 
@@ -51,6 +52,12 @@ def test_execution_changes_only_approved_files_and_rejects_replay(tmp_path, monk
     assert not files[0].exists()
     assert all(file.exists() for file in files[1:])
     assert task_store[plan.task_id]["state"] == TaskState.COMPLETED
+    monkeypatch.delitem(task_store, plan.task_id)
+    with authorized_client() as restarted:
+        assert restarted.get("/api/history").json()[0]["state"] == "completed"
+        assert restarted.post("/api/undo", json={"task_id": plan.task_id}).json()["undone_operations"] == 1
+        assert restarted.post("/api/undo", json={"task_id": plan.task_id}).status_code == 409
+    assert files[0].read_text() == files[0].name
 
 
 def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
@@ -87,10 +94,12 @@ def test_plan_falls_back_to_moves_inside_selected_folder(tmp_path, monkeypatch):
         raise RuntimeError("Model unavailable in test")
 
     monkeypatch.setattr(PlannerAgent, "create_plan", unavailable)
-    source = tmp_path / "notes.txt"
+    folder = tmp_path / "files"
+    folder.mkdir()
+    source = folder / "notes.txt"
     source.write_text("local test data")
     with authorized_client() as client:
-        response = client.post("/api/plan", json={"path": str(tmp_path)})
+        response = client.post("/api/plan", json={"path": str(folder)})
         assert response.status_code == 200
         task_id = response.json()["task_id"]
         try:
@@ -102,3 +111,29 @@ def test_plan_falls_back_to_moves_inside_selected_folder(tmp_path, monkeypatch):
             assert source.exists()
         finally:
             task_store.pop(task_id, None)
+
+
+@pytest.mark.parametrize("change", ["destination", "original"])
+def test_undo_preserves_changed_files(tmp_path, monkeypatch, change):
+    source = tmp_path / "source.txt"
+    destination = tmp_path / "destination.txt"
+    source.write_text("original data")
+    plan = PlanSchema(
+        task_id="test-undo-conflict", scope_path=str(tmp_path),
+        actions=[move(source, destination)], summary="",
+    )
+    monkeypatch.setitem(task_store, plan.task_id, {
+        "plan": plan,
+        "state": TaskState.REVIEW,
+        "authorized_root": str(tmp_path.resolve()),
+    })
+    with authorized_client() as client:
+        response = client.post(
+            "/api/execute", json={"task_id": plan.task_id, "approved_action_indices": [0]}
+        )
+        assert response.status_code == 200
+        changed = destination if change == "destination" else source
+        changed.write_text("new user content")
+        assert client.post("/api/undo", json={"task_id": plan.task_id}).status_code == 409
+        assert changed.read_text() == "new user content"
+        assert destination.exists()
