@@ -32,7 +32,12 @@ class APIClient {
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(error.detail || `HTTP ${response.status}`);
+            const detail = typeof error.detail === 'string' ? error.detail : `HTTP ${response.status}`;
+            const retryAfter = response.headers.get('Retry-After');
+            if (response.status === 429 && retryAfter && /^\d+$/.test(retryAfter)) {
+                throw new Error(`${detail}. Try again in ${retryAfter}s.`);
+            }
+            throw new Error(detail);
         }
 
         return response.json();

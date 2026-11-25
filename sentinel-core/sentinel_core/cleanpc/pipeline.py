@@ -62,7 +62,10 @@ class CleanPCPipeline:
         target_dirs: Optional[List[str]] = None,
         preferences: Optional[PreferencesSchema] = None,
         max_depth: int = 3,
-        scoped_moves_only: bool = False
+        scoped_moves_only: bool = False,
+        max_entries: int | None = None,
+        max_scan_seconds: float | None = None,
+        max_model_files: int | None = None
     ) -> Dict[str, Any]:
         """
         Scan directories and generate a cleanup plan.
@@ -94,13 +97,16 @@ class CleanPCPipeline:
         # 2. Scan all directories
         all_files: List[FileMetadata] = []
         scan_errors: List[str] = []
+        truncated = False
         
         for dir_path in target_dirs:
             try:
-                scanner = Scanner(dir_path, max_depth=max_depth, include_previews=not scoped_moves_only)
+                scanner = Scanner(dir_path, max_depth=max_depth, include_previews=not scoped_moves_only,
+                                  max_entries=max_entries, max_seconds=max_scan_seconds)
                 scan_result = scanner.scan()
                 all_files.extend(scan_result.files)
                 scan_errors.extend(scan_result.errors)
+                truncated |= scan_result.truncated
             except Exception as e:
                 logger.error(f"Failed to scan {dir_path}: {e}")
                 scan_errors.append(f"Failed to scan {dir_path}: {str(e)}")
@@ -158,18 +164,11 @@ class CleanPCPipeline:
                                   actions=actions, summary="Grouped files by type using local rules")
             return self._create_fallback_plan(task_id, rule_matches, classifications)
 
-        try:
-            plan = self.planner.create_plan(
-                task_id=task_id,
-                scan_result=combined_scan,
-                rule_matches=rule_matches,
-                preferences=preferences
-            )
-        except Exception as e:
-            logger.error(f"Failed to generate plan: {e}")
-            # Fallback: create a simple plan from rule matches
+        if max_model_files is not None and len(all_files) > max_model_files:
             plan = fallback()
-        
+        else:
+            plan = self._plan_with_fallback(task_id, combined_scan, rule_matches, preferences, fallback)
+
         if len(target_dirs) == 1:
             plan = plan.model_copy(update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id})
 
@@ -219,6 +218,7 @@ class CleanPCPipeline:
         
         # 9. Generate summary statistics
         summary = self._generate_summary(classifications, plan)
+        summary["truncated"] = truncated
         
         logger.info(f"Clean My PC scan complete. Found {summary['total_files']} files, "
                    f"{len(plan.actions)} operations planned")
@@ -234,6 +234,21 @@ class CleanPCPipeline:
             }
         }
     
+    def _plan_with_fallback(self, task_id, combined_scan, rule_matches, preferences, fallback):
+        try:
+            plan = self.planner.create_plan(
+                task_id=task_id,
+                scan_result=combined_scan,
+                rule_matches=rule_matches,
+                preferences=preferences
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate plan: {e}")
+            # Fallback: create a simple plan from rule matches
+            plan = fallback()
+
+        return plan
+
     async def execute_plan(
         self,
         task_id: str,

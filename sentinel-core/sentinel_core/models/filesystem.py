@@ -24,5 +24,6 @@ class ScanResult(BaseModel):
     root_path: str
     files: List[FileMetadata]
     ignored_count: int = 0
+    truncated: bool = False
     errors: List[str] = []
     scanned_at: datetime = Field(default_factory=datetime.now)

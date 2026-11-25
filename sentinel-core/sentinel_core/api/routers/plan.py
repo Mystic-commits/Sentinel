@@ -5,6 +5,7 @@ Endpoint for creating organization plans.
 """
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from ..limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS, schedule_scan_job
 from ..models.requests import PlanRequest
 from ..models.responses import PlanResponse
 from ..websocket.manager import ws_manager
@@ -56,18 +57,14 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
 
     task_id = f"task-{uuid.uuid4()}"
     
-    # Broadcast planning started
-    await ws_manager.broadcast(WebSocketEvent(
-        event_type=EventType.PLANNING,
-        task_id=task_id,
-        message="Creating organization plan...",
-        data={"path": request.path or "from_scan"}
-    ))
-    
-    logger.info(f"Plan creation initiated: {task_id}")
-    
     async def perform_planning(task_id: str, path: str):
         try:
+            await ws_manager.broadcast(WebSocketEvent(
+                event_type=EventType.PLANNING,
+                task_id=task_id,
+                message="Creating organization plan...",
+                data={},
+            ))
             # Initialize pipeline components
             # Note: In a real app, these should be dependency injected or singletons
             ollama = OllamaClient()
@@ -77,9 +74,16 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             
             pipeline = CleanPCPipeline(planner, safety, executor)
             
-            result = await asyncio.to_thread(
-                lambda: asyncio.run(pipeline.scan_and_plan(task_id, target_dirs=[path], scoped_moves_only=True))
-            )
+            try:
+                result = await asyncio.to_thread(
+                    lambda: asyncio.run(pipeline.scan_and_plan(
+                        task_id, target_dirs=[path], scoped_moves_only=True,
+                        max_entries=MAX_SCAN_ENTRIES, max_scan_seconds=MAX_SCAN_SECONDS,
+                        max_model_files=MAX_MODEL_FILES,
+                    ))
+                )
+            finally:
+                ollama.close()
 
             # Extract results
             plan = result["plan"]
@@ -97,7 +101,11 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             await ws_manager.broadcast(WebSocketEvent(
                 event_type=EventType.PLAN_READY,
                 task_id=task_id,
-                message=f"Plan ready: {summary.get('operations', 0)} operations proposed",
+                message=(
+                    f"Partial scan: {summary.get('operations', 0)} operations proposed"
+                    if summary["truncated"]
+                    else f"Plan ready: {summary.get('operations', 0)} operations proposed"
+                ),
                 data={
                     "plan": plan_data,
                     "summary": summary
@@ -114,7 +122,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             ))
 
     # Start background task
-    background_tasks.add_task(perform_planning, task_id, str(selected_root))
+    schedule_scan_job(background_tasks, perform_planning, task_id, str(selected_root))
     
     # Return initial response
     return PlanResponse(

@@ -5,6 +5,7 @@ from secrets import compare_digest
 from fastapi import HTTPException, Request
 
 from .config import settings
+from .limits import rate_limit_mutation
 
 EVENT_PROTOCOL = "sentinel.events.v1"
 
@@ -29,3 +30,6 @@ async def require_access(request: Request) -> None:
             detail="A valid Sentinel access token is required",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        rate_limit_mutation()
