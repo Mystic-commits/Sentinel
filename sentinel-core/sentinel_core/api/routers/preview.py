@@ -34,13 +34,18 @@ async def preview(request: PreviewRequest):
             "format": "terminal"
         }
     """
-    # TODO: Load plan from database and generate preview
-    # For now, return placeholder
-    
-    logger.info(f"Preview requested for task: {request.task_id}")
-    
-    return PreviewResponse(
-        task_id=request.task_id,
-        preview_text="Preview generation pending (preview module integration needed)",
-        format=request.format
-    )
+    import json
+    from ..memory import get_task
+    from sentinel_core.preview import generate_terminal_preview, generate_web_preview
+
+    task = get_task(request.task_id)
+    if not task or "plan" not in task:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if request.format == "terminal":
+        preview_text = generate_terminal_preview(task["plan"])
+    elif request.format == "json":
+        preview_text = json.dumps(generate_web_preview(task["plan"]))
+    else:
+        raise HTTPException(status_code=422, detail="Use terminal or json preview")
+
+    return PreviewResponse(task_id=request.task_id, preview_text=preview_text, format=request.format)

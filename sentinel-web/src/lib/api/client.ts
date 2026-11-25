@@ -57,10 +57,10 @@ class APIClient {
     }
 
     // Preview plan
-    async previewPlan(planId: string) {
+    async previewPlan(taskId: string) {
         return this.request('/preview', {
             method: 'POST',
-            body: JSON.stringify({ plan_id: planId }),
+            body: JSON.stringify({ task_id: taskId }),
         });
     }
 

@@ -82,6 +82,10 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
         "actions": [plan.actions[i] for i in sorted(indices)],
         "folders_to_create": [],
     }, deep=True)
+    from sentinel_core.models.enums import ActionType
+
+    if any(action.type not in (ActionType.MOVE, ActionType.RENAME) for action in plan.actions):
+        raise HTTPException(status_code=422, detail="This preview supports moves and renames")
     if not SafetyValidator().validate_plan(plan).is_safe:
         raise HTTPException(status_code=409, detail="The approved actions failed safety validation")
 

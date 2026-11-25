@@ -226,6 +226,9 @@ def _move_file(source: str, destination: str) -> None:
     if not os.path.exists(source):
         raise FileNotFoundError(f"Source file not found: {source}")
     
+    if os.path.lexists(destination):
+        raise FileExistsError(f"Destination already exists: {destination}")
+
     # Create destination directory if needed
     dest_dir = os.path.dirname(destination)
     if dest_dir:
@@ -311,7 +314,7 @@ def _rollback_operations(
             elif action.type == ActionType.DELETE:
                 # Cannot rollback delete - file is in trash
                 # User must manually restore from trash
-                pass
+                continue
             
             if logger:
                 log_entry = logger.log_action(
