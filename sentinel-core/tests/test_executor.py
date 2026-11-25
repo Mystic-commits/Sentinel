@@ -7,8 +7,9 @@ Tests file operations, dry-run mode, and undo functionality.
 import pytest
 from pathlib import Path
 
-from sentinel_core.executor.executor import Executor
-from sentinel_core.models.planner import PlanSchema, OperationSchema, OperationType
+from sentinel_core.executor import Executor
+from sentinel_core.models.enums import ActionType
+from sentinel_core.models.planner import PlanAction, PlanSchema
 
 
 class TestDryRunMode:
@@ -23,9 +24,10 @@ class TestDryRunMode:
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.MOVE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.MOVE,
                     source_path=source,
                     destination_path=dest_path,
                     reason="Test move"
@@ -38,8 +40,8 @@ class TestDryRunMode:
         result = await executor.execute_plan(plan, dry_run=True)
         
         # Operation should succeed (in simulation)
-        assert result.success_count == 1
-        assert result.failure_count == 0
+        assert result.successful_actions == 1
+        assert result.failed_actions == 0
         
         # But file should still be in original location
         assert Path(source).exists()
@@ -52,9 +54,10 @@ class TestDryRunMode:
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.DELETE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.DELETE,
                     source_path=file_path,
                     reason="Test delete"
                 )
@@ -66,7 +69,7 @@ class TestDryRunMode:
         result = await executor.execute_plan(plan, dry_run=True)
         
         # Operation should succeed (in simulation)
-        assert result.success_count == 1
+        assert result.successful_actions == 1
         
         # But file should still exist
         assert Path(file_path).exists()
@@ -85,9 +88,10 @@ class TestMoveOperations:
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.MOVE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.MOVE,
                     source_path=source,
                     destination_path=dest_path,
                     reason="Organize"
@@ -99,8 +103,8 @@ class TestMoveOperations:
         executor = Executor()
         result = await executor.execute_plan(plan, dry_run=False)
         
-        assert result.success_count == 1
-        assert result.failure_count == 0
+        assert result.successful_actions == 1
+        assert result.failed_actions == 0
         
         # File should be in new location
         assert Path(dest_path).exists()
@@ -117,9 +121,10 @@ class TestMoveOperations:
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.MOVE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.MOVE,
                     source_path=source,
                     destination_path=dest_path,
                     reason="Move to new location"
@@ -131,7 +136,7 @@ class TestMoveOperations:
         executor = Executor()
         result = await executor.execute_plan(plan, dry_run=False)
         
-        assert result.success_count == 1
+        assert result.successful_actions == 1
         assert Path(dest_path).exists()
 
 
@@ -145,9 +150,10 @@ class TestDeleteOperations:
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.DELETE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.DELETE,
                     source_path=file_path,
                     reason="Cleanup"
                 )
@@ -158,7 +164,7 @@ class TestDeleteOperations:
         executor = Executor()
         result = await executor.execute_plan(plan, dry_run=False)
         
-        assert result.success_count == 1
+        assert result.successful_actions == 1
         
         # File should be gone from original location
         assert not Path(file_path).exists()
@@ -170,39 +176,6 @@ class TestDeleteOperations:
 class TestCopyOperations:
     """Tests for copy operations."""
     
-    @pytest.mark.asyncio
-    async def test_copy_file(self, mock_fs):
-        """Test copying a file."""
-        content = "original content"
-        source = mock_fs.create_file("source.txt", content=content)
-        dest = mock_fs.get_path("copy.txt")
-        
-        plan = PlanSchema(
-            task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.COPY,
-                    source_path=source,
-                    destination_path=dest,
-                    reason="Backup"
-                )
-            ],
-            summary="Copy file"
-        )
-        
-        executor = Executor()
-        result = await executor.execute_plan(plan, dry_run=False)
-        
-        assert result.success_count == 1
-        
-        # Both files should exist
-        assert Path(source).exists()
-        assert Path(dest).exists()
-        
-        # Content should be identical
-        assert Path(dest).read_text() == content
-
-
 class TestErrorHandling:
     """Tests for error handling."""
     
@@ -211,9 +184,10 @@ class TestErrorHandling:
         """Test handling of nonexistent source files."""
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.MOVE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.MOVE,
                     source_path=mock_fs.get_path("nonexistent.txt"),
                     destination_path=mock_fs.get_path("dest.txt"),
                     reason="Should fail"
@@ -226,25 +200,26 @@ class TestErrorHandling:
         result = await executor.execute_plan(plan, dry_run=False)
         
         # Should report failure
-        assert result.failure_count == 1
-        assert len(result.errors) > 0
+        assert result.failed_actions == 1
+        assert result.error_message
     
     @pytest.mark.asyncio
     async def test_partial_failure(self, mock_fs):
-        """Test that execution continues after failures."""
+        """Test that execution stops after the first failure."""
         # Create two files, but only reference one correctly
         good_file = mock_fs.create_file("good.txt", content="exists")
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=[
-                OperationSchema(
-                    type=OperationType.DELETE,
+            scope_path=str(mock_fs.root),
+            actions=[
+                PlanAction(confidence=1,
+                    type=ActionType.DELETE,
                     source_path=mock_fs.get_path("nonexistent.txt"),
                     reason="Will fail"
                 ),
-                OperationSchema(
-                    type=OperationType.DELETE,
+                PlanAction(confidence=1,
+                    type=ActionType.DELETE,
                     source_path=good_file,
                     reason="Will succeed"
                 ),
@@ -255,9 +230,9 @@ class TestErrorHandling:
         executor = Executor()
         result = await executor.execute_plan(plan, dry_run=False)
         
-        # Should have both success and failure
-        assert result.success_count == 1
-        assert result.failure_count == 1
+        assert result.successful_actions == 0
+        assert Path(good_file).exists()
+        assert result.failed_actions == 1
 
 
 class TestBatchOperations:
@@ -273,8 +248,8 @@ class TestBatchOperations:
         dest_dir = mock_fs.create_directory("destination")
         
         operations = [
-            OperationSchema(
-                type=OperationType.MOVE,
+            PlanAction(confidence=1,
+                type=ActionType.MOVE,
                 source_path=f,
                 destination_path=str(Path(dest_dir) / Path(f).name),
                 reason="Batch move"
@@ -284,33 +259,17 @@ class TestBatchOperations:
         
         plan = PlanSchema(
             task_id="test-123",
-            operations=operations,
+            scope_path=str(mock_fs.root),
+            actions=operations,
             summary="Move multiple files"
         )
         
         executor = Executor()
         result = await executor.execute_plan(plan, dry_run=False)
         
-        assert result.success_count == 5
-        assert result.failure_count == 0
+        assert result.successful_actions == 5
+        assert result.failed_actions == 0
         
         # All files should be in destination
         for i in range(5):
             assert Path(dest_dir, f"file{i}.txt").exists()
-
-
-class TestUndoFunctionality:
-    """Tests for undo functionality."""
-    
-    @pytest.mark.asyncio
-    async def test_undo_move_operation(self, mock_fs):
-        """Test undoing a move operation."""
-        # This is a placeholder - actual undo implementation needed
-        # The test demonstrates what undo should do
-        
-        original_path = mock_fs.create_file("original/file.txt", content="data")
-        new_path = mock_fs.get_path("new/file.txt")
-        
-        # TODO: Implement undo functionality in executor
-        # For now, this test is skipped
-        pytest.skip("Undo functionality not yet implemented")

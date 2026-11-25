@@ -21,7 +21,7 @@ class TestBasicScanning:
         scanner = Scanner(empty_dir)
         result = scanner.scan()
         
-        assert result.root_path == empty_dir
+        assert Path(result.root_path) == Path(empty_dir).resolve()
         assert len(result.files) == 0
         assert len(result.errors) == 0
     

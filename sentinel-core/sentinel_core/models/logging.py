@@ -1,4 +1,5 @@
 from datetime import datetime
+from sqlalchemy import DateTime
 from typing import Optional
 from sqlmodel import SQLModel, Field, JSON
 from sentinel_core.models.enums import ActionType, TaskStatus
@@ -10,7 +11,7 @@ class ExecutionLogEntry(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)  # explicit annotation required by Pydantic v2
     task_id: str = Field(index=True)
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.now, sa_type=DateTime)
     action_type: ActionType
     source_path: str
     destination_path: Optional[str] = None
@@ -23,7 +24,7 @@ class TaskRecord(SQLModel, table=True):
     
     task_id: str = Field(primary_key=True)
     user_prompt: str
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now, sa_type=DateTime)
     status: TaskStatus = Field(default=TaskStatus.SCANNING)
     
     # Store large blobs as JSON strings or separate file references

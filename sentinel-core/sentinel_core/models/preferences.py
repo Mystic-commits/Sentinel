@@ -1,5 +1,6 @@
 from typing import List, Optional
 from datetime import datetime
+from sqlalchemy import DateTime
 from sqlmodel import SQLModel, Field, JSON
 from sentinel_core.models.enums import ActionType
 
@@ -49,8 +50,8 @@ class PreferencePattern(SQLModel, table=True):
     confidence: float = Field(ge=0.0, le=1.0, default=0.5)  # How often this pattern was approved
     occurrence_count: int = Field(default=0, ge=0)  # Number of times seen
     approval_count: int = Field(default=0, ge=0)  # Number of times approved
-    last_seen: datetime = Field(default_factory=datetime.now)
-    created_at: datetime = Field(default_factory=datetime.now)
+    last_seen: datetime = Field(default_factory=datetime.now, sa_type=DateTime)
+    created_at: datetime = Field(default_factory=datetime.now, sa_type=DateTime)
 
 
 class UserDecision(SQLModel, table=True):
@@ -75,7 +76,7 @@ class UserDecision(SQLModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     task_id: str = Field(index=True)
-    timestamp: datetime = Field(default_factory=datetime.now, index=True)
+    timestamp: datetime = Field(default_factory=datetime.now, sa_type=DateTime, index=True)
     action_type: ActionType
     source_path: str
     destination_path: Optional[str] = None
