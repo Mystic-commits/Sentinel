@@ -1,98 +1,63 @@
-"""
-Apply Command
+"""Review and apply selected actions from a saved plan."""
 
-Execute an organization plan with confirmations.
-"""
+import sqlite3
+from typing import List, Optional
 
 import typer
+from rich.text import Text
 from typing_extensions import Annotated
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
-from sentinel_core.executor import execute_plan
-from sentinel_core.models import ActionType
+from sentinel_core.api.receipts import record_start, run_recorded, verify_sources
+from sentinel_core.models.enums import ActionType
+from sentinel_core.safety import SafetyValidator
+
 from ..console import console, watch_status
+from ..saved_plans import load_plan
 from ..ui.prompts import confirm
-
-
-def _load_plan(task_id: str):
-    """Load plan from database."""
-    # TODO: Implement database retrieval
-    # For now, return None to show error
-    from sentinel_core.memory.db import get_engine, get_session
-    from sentinel_core.models.logging import TaskRecord
-    from sqlmodel import select
-    
-    engine = get_engine()
-    with get_session(engine) as session:
-        stmt = select(TaskRecord).where(TaskRecord.task_id == task_id)
-        task = session.exec(stmt).first()
-        
-        if task:
-            # Load the plan JSON
-            import json
-            return json.loads(task.plan_json) if hasattr(task, 'plan_json') else None
-    
-    return None
+from .plan import show_plan
 
 
 def apply_command(
-    task_id: Annotated[str, typer.Argument(help="Task ID to execute")],
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompts")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview without executing")] = False,
+    task_id: Annotated[str, typer.Argument(help="Saved task ID")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply the reviewed selection without prompting")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Review without making changes")] = False,
+    action: Annotated[Optional[List[int]], typer.Option("--action", help="Action number to approve. Repeat to approve several.")] = None,
 ):
-    """
-    Execute an organization plan.
-    
-    Applies the file operations from a previously created plan.
-    You'll be asked to confirm before any changes are made.
-    """
-    
-    # Load plan
-    console.print(f"[info]Loading plan:[/] [highlight]{task_id}[/]")
-    
-    with watch_status("[info]Retrieving plan from database..."):
-        try:
-            plan = _load_plan(task_id)
-        except Exception as e:
-            console.print(f"[error]Error loading plan:[/] {e}")
-            raise typer.Exit(1)
-    
-    if not plan:
-        console.print(f"[error]Error:[/] Plan not found: {task_id}")
-        console.print(f"\n[info]Tips:[/]")
-        console.print(f"  • Check task ID spelling")
-        console.print(f"  • List recent tasks: [muted](coming soon)[/muted]")
-        console.print(f"  • Create new plan: [path]sentinel plan <path>[/path]")
-        raise typer.Exit(1)
-    
-    # Show plan summary
-    console.print(f"\n[info]📋 Plan Summary:[/]")
-    
-    # This is a simplified version - in production you'd parse the actual plan
-    # For now, show placeholder
-    console.print(f"  Task ID: [highlight]{task_id}[/]")
-    console.print(f"  [muted](Full plan details coming soon)[/muted]")
-    
-    # Dry run
-    if dry_run:
-        console.print(f"\n[info]🔍 Dry run mode - no changes will be made[/]")
-        console.print(f"  Remove [path]--dry-run[/path] to execute")
-        return
-    
-    # Confirmation
-    if not yes:
-        console.print()
-        if not confirm("Execute this plan?"):
-            console.print("[warning]❌ Aborted[/]")
-            raise typer.Exit(0)
-    
-    # Execute (placeholder - would need actual executor integration)
-    console.print(f"\n[info]⚙️  Executing plan...[/]")
-    
-    # This is a placeholder - actual implementation would call executor
-    console.print(f"[warning]Note:[/] Full executor integration coming soon")
-    console.print(f"  This command will execute file operations once executor is connected")
-    
-    # Show success
-    console.print(f"\n[success]✓ Plan execution complete[/]")
-    console.print(f"\n[highlight]To undo:[/] [path]sentinel undo {task_id}[/path]")
+    """Apply saved moves and renames with a durable undo receipt."""
+    try:
+        stored = load_plan(task_id)
+        if stored is None:
+            raise ValueError("Saved plan not found. Create one with sentinel plan.")
+        plan, snapshot = stored
+        selected = set(action or range(1, len(plan.actions) + 1))
+        if not selected or min(selected) < 1 or max(selected) > len(plan.actions):
+            raise ValueError("Select valid action numbers from the plan")
+        approved = plan.model_copy(update={
+            "actions": [plan.actions[index - 1] for index in sorted(selected)],
+            "folders_to_create": [],
+        })
+        if any(item.type not in (ActionType.MOVE, ActionType.RENAME) for item in approved.actions):
+            raise ValueError("The CLI preview supports moves and renames")
+        show_plan(plan, selected)
+        verify_sources(approved, snapshot)
+        if not SafetyValidator().validate_plan(approved).is_safe:
+            raise ValueError("The approved actions failed folder safety validation")
+        if dry_run:
+            console.print("[info]Dry run. No files moved.[/]")
+            return
+        if not yes and not confirm(f"Apply {len(selected)} approved changes?"):
+            console.print("[warning]Cancelled.[/]")
+            return
+        record_start(approved)
+        with watch_status("[info]Applying approved changes…[/]"):
+            result = run_recorded(approved, snapshot)
+        if result.failed_actions or result.error_message:
+            raise ValueError(result.error_message or "One or more changes failed")
+    except sqlite3.IntegrityError as error:
+        console.print("[error]This task already has an execution receipt.[/]")
+        raise typer.Exit(1) from error
+    except (ValueError, OSError, sqlite3.Error) as error:
+        console.print(Text(str(error), style="error"))
+        raise typer.Exit(1) from error
+    console.print(f"[success]Applied {result.successful_actions} changes.[/]")
+    console.print(f"Restore eligible files: sentinel undo {task_id}")

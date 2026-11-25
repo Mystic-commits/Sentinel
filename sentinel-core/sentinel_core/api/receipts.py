@@ -96,6 +96,14 @@ def history():
             for task_id, state, created_at in rows]
 
 
+def receipt_state(task_id: str) -> str | None:
+    with database() as connection:
+        row = connection.execute(
+            "SELECT state FROM api_receipts WHERE task_id = ?", (task_id,)
+        ).fetchone()
+    return row[0] if row else None
+
+
 def undo_recorded(task_id: str):
     with database() as connection:
         row = connection.execute(

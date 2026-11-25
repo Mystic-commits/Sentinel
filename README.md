@@ -22,7 +22,20 @@ npm run dev
 
 Open [the local dashboard](http://localhost:3000/dashboard), enter the access token printed in the backend terminal, then enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope.
 
-Use `poetry run sentinel --help` from `sentinel-core` to inspect the CLI. Download availability is listed on the [public site](https://sentinel-ten-black.vercel.app/download).
+### Review and apply a plan from the terminal
+
+Run these commands from `sentinel-core`. Substitute the task ID printed by the plan command and the action numbers you want to approve.
+
+```sh
+poetry run sentinel plan /absolute/path/to/sample-folder --rules-only
+poetry run sentinel apply TASK_ID --dry-run
+poetry run sentinel apply TASK_ID --action 1
+poetry run sentinel undo TASK_ID
+```
+
+Repeat `--action` to approve multiple changes. Omitting it selects the entire displayed plan and prompts for confirmation. Leave off `--rules-only` to try local Ollama, or use `--no-save` to print a plan without persisting it. Saved plans and execution receipts use the local Sentinel SQLite database.
+
+Use `poetry run sentinel --help` to see all commands. Download availability is listed on the [public site](https://sentinel-ten-black.vercel.app/download).
 
 ## Repository layout
 

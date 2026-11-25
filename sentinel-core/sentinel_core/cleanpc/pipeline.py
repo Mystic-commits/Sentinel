@@ -65,7 +65,8 @@ class CleanPCPipeline:
         scoped_moves_only: bool = False,
         max_entries: int | None = None,
         max_scan_seconds: float | None = None,
-        max_model_files: int | None = None
+        max_model_files: int | None = None,
+        use_ai: bool = True
     ) -> Dict[str, Any]:
         """
         Scan directories and generate a cleanup plan.
@@ -164,7 +165,7 @@ class CleanPCPipeline:
                                   actions=actions, summary="Grouped files by type using local rules")
             return self._create_fallback_plan(task_id, rule_matches, classifications)
 
-        if max_model_files is not None and len(all_files) > max_model_files:
+        if not use_ai or (max_model_files is not None and len(all_files) > max_model_files):
             plan = fallback()
         else:
             plan = self._plan_with_fallback(task_id, combined_scan, rule_matches, preferences, fallback)

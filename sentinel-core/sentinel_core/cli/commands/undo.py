@@ -4,9 +4,13 @@ Undo Command
 Undo previously executed operations.
 """
 
+import sqlite3
+
 import typer
+from rich.text import Text
 from typing_extensions import Annotated
 
+from sentinel_core.api.receipts import receipt_state, undo_recorded
 from sentinel_core.executor import UndoManager
 from sentinel_core.memory.db import get_engine, get_session
 from ..console import console
@@ -26,6 +30,22 @@ def undo_command(
     
     console.print(f"[info]🔄 Checking undo status for:[/] [highlight]{task_id}[/]")
     
+    try:
+        state = receipt_state(task_id)
+        if state is not None:
+            if state != "completed":
+                raise ValueError("Only a completed, eligible receipt can be undone")
+            if not yes and not confirm("Restore the files from this receipt?"):
+                return
+            result = undo_recorded(task_id)
+            if result.failed_actions or result.error_message:
+                raise ValueError(result.error_message or "Undo needs attention")
+            console.print(f"[success]Restored {result.successful_actions} files.[/]")
+            return
+    except (OSError, ValueError, sqlite3.Error) as error:
+        console.print(Text(str(error), style="error"))
+        raise typer.Exit(1) from error
+
     # Get database connection
     try:
         engine = get_engine()

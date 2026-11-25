@@ -14,6 +14,9 @@ Rule Matches (High Confidence):
 User Preferences:
 {{ preferences_json }}
 
+{% if user_prompt %}
+User organization request: {{ user_prompt | tojson }}
+{% endif %}
 INSTRUCTIONS:
 1. Analyze the file list and rule matches.
 2. Propose a logical folder structure (e.g., Documents/Invoices, Images/Screenshots).

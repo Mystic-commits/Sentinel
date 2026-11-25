@@ -31,7 +31,7 @@ class PlannerAgent:
     implementation to the constructor - no changes to this class needed.
     """
 
-    def __init__(self, llm_provider: LLMProvider, model_name: str = "llama2"):
+    def __init__(self, llm_provider: LLMProvider, model_name: str = "llama2", *, user_prompt: str = ""):
         """
         Args:
             llm_provider: Any object implementing the LLMProvider interface.
@@ -41,6 +41,7 @@ class PlannerAgent:
         """
         self.client = llm_provider
         self.model_name = model_name
+        self.user_prompt = user_prompt
         self._prompt_template = self._load_template()
 
     def _load_template(self) -> Template:
@@ -93,7 +94,8 @@ class PlannerAgent:
             scope_path=scan_result.root_path,
             files_json=json.dumps(files_summary, indent=2),
             rule_matches_json=json.dumps(matches_summary, indent=2),
-            preferences_json=preferences.model_dump_json(indent=2)
+            preferences_json=preferences.model_dump_json(indent=2),
+            user_prompt=self.user_prompt
         )
         
         # 3. Generate
