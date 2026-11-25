@@ -1,10 +1,8 @@
+import { siteUrl } from '@/lib/site';
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 
-export const metadata: Metadata = {
-    title: "Sentinel — AI File Organization",
-    description: "Local-first AI agent for safe, intelligent file organization",
-};
+export const metadata: Metadata = { metadataBase: siteUrl };
 
 export default function RootLayout({
     children,

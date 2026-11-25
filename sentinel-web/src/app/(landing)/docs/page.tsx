@@ -1,3 +1,4 @@
+import { pageMetadata } from '@/lib/site';
 import { DocsSection } from '@/components/landing';
 
 export default function DocsPage() {
@@ -8,3 +9,5 @@ export default function DocsPage() {
         </div>
     );
 }
+
+export const metadata = pageMetadata('/docs');

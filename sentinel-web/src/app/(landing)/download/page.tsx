@@ -1,3 +1,4 @@
+import { pageMetadata } from '@/lib/site';
 import { DownloadSection, InstallSection } from '@/components/landing';
 
 export default function DownloadPage() {
@@ -8,3 +9,5 @@ export default function DownloadPage() {
         </div>
     );
 }
+
+export const metadata = pageMetadata('/download');

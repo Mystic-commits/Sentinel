@@ -1,3 +1,4 @@
+import { pageMetadata } from '@/lib/site';
 import { Hero, ConnectCTA, FAQSection } from '@/components/landing';
 
 export default function Home() {
@@ -12,3 +13,5 @@ export default function Home() {
         </>
     );
 }
+
+export const metadata = pageMetadata('/');

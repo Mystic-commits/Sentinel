@@ -1,3 +1,4 @@
+import { pageMetadata } from '@/lib/site';
 import { FeatureGrid } from '@/components/landing';
 
 export default function FeaturesPage() {
@@ -8,3 +9,5 @@ export default function FeaturesPage() {
         </div>
     );
 }
+
+export const metadata = pageMetadata('/features');
