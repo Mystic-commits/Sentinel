@@ -1,5 +1,6 @@
 'use client';
 
+import { ShieldCheck } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { api } from '@/lib/api/client';
@@ -37,18 +38,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (connected) return <ConnectedDashboard>{children}</ConnectedDashboard>;
 
     return (
-        <main className="mx-auto max-w-md p-8">
+        <main className="mx-auto max-w-md px-5 py-16 sm:py-24">
+            <ShieldCheck className="mb-4 text-[#a6edc3]" size={32} aria-hidden />
             <h1 className="mb-4 text-xl font-semibold">Connect to Sentinel</h1>
+            <p className="mb-6 text-sm text-txt-muted">Paste the token printed in the terminal where you started the Sentinel backend.</p>
             <form onSubmit={connect} className="grid gap-4">
                 <label className="grid gap-2">
                     Local access token
                     <input type="password" autoComplete="off" required
                         pattern="[a-fA-F0-9]{64}" value={token}
                         onChange={(event) => setToken(event.target.value)}
-                        className="rounded border border-edge bg-surface-1 p-3" />
+                        className="rounded border border-[#526c5e] bg-[#101c18] p-3" />
                 </label>
                 {error && <p role="alert">{error}</p>}
-                <button disabled={connecting} className="rounded bg-white p-3 text-black">
+                <button disabled={connecting} className="rounded bg-[#a6edc3] p-3 font-semibold text-[#12241c]">
                     {connecting ? 'Connecting…' : 'Connect'}
                 </button>
             </form>

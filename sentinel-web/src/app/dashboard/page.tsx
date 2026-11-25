@@ -11,41 +11,25 @@ export default function DashboardPage() {
     const activeTask = useActiveTask();
 
     return (
-        <div className="flex h-screen bg-surface-0 overflow-hidden">
-            <Sidebar />
-
-            {/* Main content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="border-b border-edge">
+        <div className="flex min-h-dvh bg-[#0b1312] lg:h-dvh lg:overflow-hidden">
+            <div className="hidden lg:block"><Sidebar /></div>
+            <main className="min-w-0 flex-1 lg:overflow-y-auto">
+                <div className="mx-auto max-w-6xl">
+                    <header className="flex items-center justify-between border-b border-edge px-5 py-3 sm:px-8">
+                        <h1 className="text-lg font-semibold tracking-tight">File workspace</h1>
+                        <span className="rounded-md bg-[#172b21] px-2 py-1 text-xs font-medium text-[#adf1c7]">Local session</span>
+                    </header>
                     <TaskComposer />
-                </div>
-
-                <ExecutionHistory />
-
-                <div className="flex-1 overflow-y-auto">
-                    {activeTask ? (
-                        <div className="max-w-3xl mx-auto px-8">
-                            <Timeline
-                                currentState={activeTask.state}
-                                progress={activeTask.progress}
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center h-full">
-                            <div className="text-center space-y-2">
-                                <p className="text-[15px] text-txt-muted">
-                                    No active task
-                                </p>
-                                <p className="text-[13px] text-txt-faint">
-                                    Describe what you want to organize above
-                                </p>
-                            </div>
-                        </div>
+                    <ExecutionHistory />
+                    {activeTask && (
+                        <details className="border-b border-edge px-5 py-3 text-sm sm:px-8">
+                            <summary className="cursor-pointer">Task progress</summary>
+                            <Timeline currentState={activeTask.state} progress={activeTask.progress} />
+                        </details>
                     )}
+                    <RightPanel />
                 </div>
-            </div>
-
-            <RightPanel />
+            </main>
         </div>
     );
 }

@@ -24,13 +24,13 @@ const config: Config = {
                 txt: {
                     primary: "#ededed",
                     secondary: "#999",
-                    muted: "#666",
-                    faint: "#444",
+                    muted: "#a4ada7",
+                    faint: "#949f98",
                 },
             },
             fontFamily: {
-                sans: ["var(--font-inter)", "Inter", "-apple-system", "system-ui", "sans-serif"],
-                mono: ["var(--font-jetbrains)", "JetBrains Mono", "SF Mono", "monospace"],
+                sans: ["Inter", "-apple-system", "system-ui", "sans-serif"],
+                mono: ["JetBrains Mono", "SF Mono", "monospace"],
             },
             animation: {
                 'fade-in': 'fadeIn 0.3s ease-out',

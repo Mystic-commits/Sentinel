@@ -41,7 +41,7 @@ export const useStore = create<AppState>((set, get) => ({
     tasks: [],
     activeTaskId: null,
     sidebarOpen: true,
-    activePanel: 'logs',
+    activePanel: 'diffs',
     connected: false,
 
     // Task actions

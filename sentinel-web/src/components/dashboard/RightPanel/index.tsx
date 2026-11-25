@@ -15,7 +15,7 @@ export default function RightPanel() {
     const activeTask = useActiveTask();
 
     return (
-        <div className="w-80 flex flex-col h-screen bg-surface-1 border-l border-edge">
+        <div className="flex min-h-64 min-w-0 flex-col bg-[#101c18]">
             {/* Tabs */}
             <div className="flex h-12 border-b border-edge">
                 {TABS.map((tab) => (
@@ -39,7 +39,7 @@ export default function RightPanel() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-hidden">
+            <div className="min-w-0 flex-1">
                 {activePanel === 'logs' && <LogsPanel task={activeTask} />}
                 {activePanel === 'preview' && <PreviewPanel task={activeTask} />}
                 {activePanel === 'diffs' && <DiffsPanel task={activeTask} />}

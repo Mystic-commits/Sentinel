@@ -20,7 +20,7 @@ npm ci
 npm run dev
 ```
 
-Open [the local dashboard](http://localhost:3000/dashboard), enter the access token printed in the backend terminal, then enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope. The dashboard's description and mode controls are still preview UI and do not drive planning.
+Open [the local dashboard](http://localhost:3000/dashboard), enter the access token printed in the backend terminal, then enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope.
 
 Use `poetry run sentinel --help` from `sentinel-core` to inspect the CLI. Download availability is listed on the [public site](https://sentinel-ten-black.vercel.app/download).
 
@@ -35,7 +35,7 @@ Use `poetry run sentinel --help` from `sentinel-core` to inspect the CLI. Downlo
 
 ## Release status
 
-Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The experimental desktop launcher inherits the token when launched from the configured shell. Automated desktop pairing, per-session event isolation, stale-file detection before apply, filesystem race handling, and hard timeouts for blocked filesystem calls need further work. The developer dashboard can apply selected moves and renames. Pending plans live in memory. Completed dashboard moves have SQLite receipts. Use **Show execution history** to undo eligible moves after restarting the backend. Undo blocks if a file changed or an original path is occupied. Interrupted apply or undo receipts require manual inspection. Signed desktop installers and a supported package-registry installation remain release milestones.
+Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The experimental desktop launcher inherits the token when launched from the configured shell. Automated desktop pairing, per-session event isolation, filesystem race handling, and hard timeouts for blocked filesystem calls need further work. The developer dashboard can apply selected moves and renames. Pending plans live in memory. Completed dashboard moves have SQLite receipts. Use **Show execution history** to undo eligible moves after restarting the backend. Undo blocks if a file changed or an original path is occupied. Interrupted apply or undo receipts require manual inspection. Signed desktop installers and a supported package-registry installation remain release milestones.
 
 ## Checks
 

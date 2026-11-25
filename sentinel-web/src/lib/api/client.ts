@@ -53,7 +53,7 @@ class APIClient {
 
     // Create plan
     async createPlan(scanId: string | null, mode: string, userPrompt?: string, path?: string) {
-        return this.request('/plan', {
+        return this.request<{ task_id: string }>('/plan', {
             method: 'POST',
             body: JSON.stringify({
                 scan_id: scanId,
