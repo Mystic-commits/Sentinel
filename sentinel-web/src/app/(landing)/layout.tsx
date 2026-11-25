@@ -1,17 +1,41 @@
-import { Navbar, Footer } from '@/components/landing';
+import '@fontsource-variable/manrope';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import Link from 'next/link';
+import SiteMark from '@/components/landing/SiteMark';
+import './website.css';
 
-export default function LandingLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
+const links = [
+    { href: '/features', label: 'Features' },
+    { href: '/how-it-works', label: 'How it works' },
+    { href: '/docs', label: 'Docs' },
+];
+
+export default function LandingLayout({ children }: { children: React.ReactNode }) {
     return (
-        <div className="min-h-screen bg-surface-0 flex flex-col">
-            <Navbar />
-            <main className="flex-1 pt-20">
-                {children}
-            </main>
-            <Footer />
+        <div className="sentinel-site">
+            <header className="site-header">
+                <div className="site-shell site-nav">
+                    <Link href="/" className="site-wordmark"><SiteMark />Sentinel</Link>
+                    <nav aria-label="Main navigation">
+                        {links.map(link => <Link key={link.href} href={link.href}>{link.label}</Link>)}
+                    </nav>
+                    <div className="site-nav-actions">
+                        <Link className="site-mobile-docs" href="/docs">Docs</Link>
+                        <Link className="site-button site-button-small" href="/download">Get Sentinel <span aria-hidden>↗</span></Link>
+                    </div>
+                </div>
+            </header>
+            <main>{children}</main>
+            <footer className="site-footer">
+                <div className="site-shell site-footer-inner">
+                    <Link href="/" className="site-wordmark"><SiteMark />Sentinel</Link>
+                    <p>Open-source file organization.</p>
+                    <nav aria-label="Footer navigation">
+                        {links.map(link => <Link key={link.href} href={link.href}>{link.label}</Link>)}
+                        <a href="https://github.com/Mystic-commits/Sentinel">GitHub ↗</a>
+                    </nav>
+                </div>
+            </footer>
         </div>
     );
 }
