@@ -14,7 +14,6 @@ const footerSections = [
         title: 'Resources',
         links: [
             { label: 'Documentation', href: '/docs' },
-            { label: 'API Reference', href: 'http://localhost:8000/docs', external: true },
             { label: 'GitHub', href: 'https://github.com/Mystic-commits/Sentinel', external: true },
         ],
     },

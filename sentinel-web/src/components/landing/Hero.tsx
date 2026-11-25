@@ -46,7 +46,7 @@ export default function Hero() {
                     className="text-[18px] text-txt-secondary max-w-xl mx-auto mb-10 leading-relaxed"
                 >
                     Sentinel scans, plans, and organizes your files using local AI.
-                    Nothing ever leaves your machine.
+                    Review proposed changes before applying them.
                 </motion.p>
 
                 {/* CTAs */}
@@ -64,45 +64,11 @@ export default function Hero() {
                             </svg>
                         </Button>
                     </Link>
-                    <Button variant="secondary" size="lg">
-                        View on GitHub
-                    </Button>
+                    <Link href="https://github.com/Mystic-commits/Sentinel">
+                        <Button variant="secondary" size="lg">View on GitHub</Button>
+                    </Link>
                 </motion.div>
 
-                {/* Terminal snippet */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                    className="mt-16 inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-surface-1 border border-edge group hover:border-edge-hover transition-colors"
-                >
-                    <span className="text-txt-faint font-mono text-[14px]">$</span>
-                    <code className="text-[14px] font-mono text-txt-secondary">
-                        pip install sentinel-ai
-                    </code>
-                    <button className="text-[12px] text-txt-faint hover:text-txt-secondary transition-colors px-2 py-1 rounded-lg hover:bg-surface-2">
-                        Copy
-                    </button>
-                </motion.div>
-
-                {/* Stats bar */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, delay: 0.38 }}
-                    className="mt-12 flex items-center justify-center gap-8"
-                >
-                    {[
-                        { value: '100%', label: 'Local' },
-                        { value: '0', label: 'Data sent' },
-                        { value: '∞', label: 'Undoable' },
-                    ].map((stat) => (
-                        <div key={stat.label} className="text-center">
-                            <p className="text-[20px] font-semibold text-txt-primary tracking-tight">{stat.value}</p>
-                            <p className="text-[12px] text-txt-faint">{stat.label}</p>
-                        </div>
-                    ))}
-                </motion.div>
             </div>
         </section>
     );
