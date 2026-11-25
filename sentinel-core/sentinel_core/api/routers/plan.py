@@ -6,6 +6,7 @@ Endpoint for creating organization plans.
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from ..limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS, schedule_scan_job
+from ..receipts import snapshot_sources
 from ..models.requests import PlanRequest
 from ..models.responses import PlanResponse
 from ..websocket.manager import ws_manager
@@ -91,7 +92,11 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
 
             # Save plan to memory store
             from ..memory import save_task
-            save_task(task_id, {"plan": plan, "summary": summary, "state": TaskState.REVIEW, "authorized_root": path})
+            identities = await asyncio.to_thread(snapshot_sources, plan)
+            save_task(task_id, {
+                "plan": plan, "summary": summary, "state": TaskState.REVIEW,
+                "authorized_root": path, "source_identities": identities,
+            })
             
             # Broadcast plan ready
             

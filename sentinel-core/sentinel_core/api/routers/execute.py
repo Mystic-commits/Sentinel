@@ -90,14 +90,14 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=409, detail="The approved actions failed safety validation")
 
     import sqlite3
-    from ..receipts import identity, record_start, run_recorded
+    from ..receipts import record_start, run_recorded, verify_sources
 
+    expected = task_data.get("source_identities", {})
     try:
-        for action in plan.actions:
-            identity(action.source_path)
+        verify_sources(plan, expected)
         record_start(plan)
     except (OSError, ValueError) as error:
-        raise HTTPException(status_code=409, detail="A source is unavailable or is not a regular file") from error
+        raise HTTPException(status_code=409, detail="A source changed after review. Scan the folder again.") from error
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=409, detail="This task already has an execution receipt") from error
 
@@ -116,7 +116,7 @@ async def execute(request: ExecuteRequest, background_tasks: BackgroundTasks):
             ))
             
             # Call the REAL executor directly — no pipeline, no class wrapper
-            result = await asyncio.to_thread(run_recorded, plan)
+            result = await asyncio.to_thread(run_recorded, plan, expected)
             
             logger.warning(f"[EXEC] Result: succeeded={result.successful_actions}, failed={result.failed_actions}, error={result.error_message}")
             

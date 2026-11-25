@@ -37,6 +37,26 @@ def identity(path: str) -> tuple[int, ...]:
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
+def snapshot_sources(plan: PlanSchema) -> dict[str, tuple[int, ...]]:
+    snapshot = {}
+    for action in plan.actions:
+        source = action.source_path
+        if not source:
+            continue
+        try:
+            snapshot[source] = identity(source)
+        except (OSError, ValueError):
+            continue
+    return snapshot
+
+
+def verify_sources(plan: PlanSchema, expected: dict[str, tuple[int, ...]]) -> None:
+    for action in plan.actions:
+        source = action.source_path
+        if not source or source not in expected or identity(source) != expected[source]:
+            raise ValueError("A source changed after the plan was prepared")
+
+
 def record_start(plan: PlanSchema) -> None:
     with database() as connection:
         connection.execute(
@@ -45,10 +65,11 @@ def record_start(plan: PlanSchema) -> None:
         )
 
 
-def run_recorded(plan: PlanSchema):
+def run_recorded(plan: PlanSchema, expected: dict[str, tuple[int, ...]]):
     try:
         if not SafetyValidator().validate_plan(plan).is_safe:
             raise ValueError("The approved plan failed filesystem revalidation")
+        verify_sources(plan, expected)
         result = execute_plan(plan)
         failed = bool(result.failed_actions or result.error_message)
         identities = None if failed else [identity(action.destination_path) for action in plan.actions]

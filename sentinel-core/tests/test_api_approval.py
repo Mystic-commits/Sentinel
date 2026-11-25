@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from sentinel_core.api.main import app
 from sentinel_core.api.memory import task_store
+from sentinel_core.api.receipts import snapshot_sources
 from sentinel_core.models.enums import ActionType, TaskState
 from sentinel_core.models.planner import PlanAction, PlanSchema
 
@@ -40,6 +41,7 @@ def test_execution_changes_only_approved_files_and_rejects_replay(tmp_path, monk
     plan = PlanSchema(task_id="test-approved", scope_path=str(tmp_path), actions=actions, summary="")
     monkeypatch.setitem(task_store, plan.task_id, {
         "plan": plan,
+        "source_identities": snapshot_sources(plan),
         "state": TaskState.REVIEW,
         "authorized_root": str(tmp_path.resolve()),
     })
@@ -74,6 +76,7 @@ def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
     )
     monkeypatch.setitem(task_store, plan.task_id, {
         "plan": plan,
+        "source_identities": snapshot_sources(plan),
         "state": TaskState.REVIEW,
         "authorized_root": str(root.resolve()),
     })
@@ -124,6 +127,7 @@ def test_undo_preserves_changed_files(tmp_path, monkeypatch, change):
     )
     monkeypatch.setitem(task_store, plan.task_id, {
         "plan": plan,
+        "source_identities": snapshot_sources(plan),
         "state": TaskState.REVIEW,
         "authorized_root": str(tmp_path.resolve()),
     })
@@ -137,3 +141,28 @@ def test_undo_preserves_changed_files(tmp_path, monkeypatch, change):
         assert client.post("/api/undo", json={"task_id": plan.task_id}).status_code == 409
         assert changed.read_text() == "new user content"
         assert destination.exists()
+
+
+def test_apply_rejects_changed_source(tmp_path, monkeypatch):
+    source = tmp_path / "notes.txt"
+    destination = tmp_path / "sorted.txt"
+    source.write_text("before review")
+    plan = PlanSchema(
+        task_id="stale", scope_path=str(tmp_path),
+        actions=[move(source, destination)], summary="",
+    )
+    monkeypatch.setitem(task_store, plan.task_id, {
+        "plan": plan,
+        "source_identities": snapshot_sources(plan),
+        "authorized_root": str(tmp_path.resolve()),
+        "state": TaskState.REVIEW,
+    })
+    source.write_text("changed after review")
+    with authorized_client() as client:
+        response = client.post("/api/execute", json={
+            "task_id": plan.task_id, "approved_action_indices": [0],
+        })
+        assert response.status_code == 409
+        assert client.get("/api/history").json() == []
+    assert source.read_text() == "changed after review"
+    assert not destination.exists()
