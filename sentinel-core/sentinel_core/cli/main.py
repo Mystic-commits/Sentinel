@@ -7,7 +7,7 @@ Entry point for the Sentinel command-line interface.
 import typer
 from typing_extensions import Annotated
 
-from .console import console
+from .console import console, show_watchkeeper
 
 # Create Typer app
 app = typer.Typer(
@@ -43,10 +43,9 @@ def main(
     """
     Sentinel - AI-powered file organization assistant.
     
-    Safely organize your Downloads, Desktop, and Documents with AI assistance.
-    All operations are logged and reversible.
+    Review proposed changes to files with local AI assistance.
     """
-    pass
+    show_watchkeeper()
 
 
 # Register commands

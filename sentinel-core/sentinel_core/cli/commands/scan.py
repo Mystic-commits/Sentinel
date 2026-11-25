@@ -10,7 +10,7 @@ from rich.table import Table
 from typing_extensions import Annotated
 
 from sentinel_core.scanner import scan_directory
-from ..console import console
+from ..console import console, watch_status
 
 
 def _format_size(size_bytes: int) -> str:
@@ -44,7 +44,7 @@ def scan_command(
     # Perform scan
     console.print(f"[info]Scanning:[/] [path]{path.absolute()}[/path]")
     
-    with console.status("[info]Analyzing files..."):
+    with watch_status("[info]Analyzing files..."):
         try:
             result = scan_directory(str(path.absolute()))
         except Exception as e:

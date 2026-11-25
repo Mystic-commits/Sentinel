@@ -16,7 +16,7 @@ try:
     BACKEND_AVAILABLE = True
 except ImportError:
     BACKEND_AVAILABLE = False
-from ..console import console
+from ..console import console, watch_status
 
 
 def plan_command(
@@ -43,7 +43,7 @@ def plan_command(
     # Step 1: Scan
     console.print(f"[info]📂 Scanning:[/] [path]{path.absolute()}[/path]")
     
-    with console.status("[info]Analyzing files..."):
+    with watch_status("[info]Analyzing files..."):
         try:
             scan_result = scan_directory(str(path.absolute()))
         except Exception as e:
@@ -65,7 +65,7 @@ def plan_command(
     # Step 2: Generate plan
     console.print("[info]🤖 Creating organization plan with AI...[/]")
     
-    with console.status("[info]Thinking..."):
+    with watch_status("[info]Thinking..."):
         try:
             planner = PlannerAgent()
             plan = planner.generate(scan_result, user_prompt=prompt if prompt else None)

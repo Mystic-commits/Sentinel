@@ -19,6 +19,7 @@ jinja2 = "^3.1.6"
 rich = "^13.0.0"
 send2trash = "^1.8.0"
 typer = "^0.9.0"
+click = ">=8.0,<8.2"
 fastapi = "^0.109.0"
 uvicorn = {extras = ["standard"], version = "^0.27.0"}
 python-multipart = "^0.0.6"

@@ -11,7 +11,7 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 
 from sentinel_core.planner.ollama_client import OllamaClient
-from ..console import console
+from ..console import console, watch_status
 
 
 def ask_command(
@@ -38,7 +38,7 @@ def ask_command(
         context_path = None
     
     # Get AI response
-    with console.status("[info]🤖 Thinking..."):
+    with watch_status("[info]🤖 Thinking..."):
         try:
             client = OllamaClient()
             

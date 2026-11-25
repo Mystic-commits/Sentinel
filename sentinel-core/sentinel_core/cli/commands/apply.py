@@ -10,7 +10,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
 from sentinel_core.executor import execute_plan
 from sentinel_core.models import ActionType
-from ..console import console
+from ..console import console, watch_status
 from ..ui.prompts import confirm
 
 
@@ -50,7 +50,7 @@ def apply_command(
     # Load plan
     console.print(f"[info]Loading plan:[/] [highlight]{task_id}[/]")
     
-    with console.status("[info]Retrieving plan from database..."):
+    with watch_status("[info]Retrieving plan from database..."):
         try:
             plan = _load_plan(task_id)
         except Exception as e:

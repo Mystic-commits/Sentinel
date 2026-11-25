@@ -16,7 +16,7 @@ try:
 except ImportError:
     BACKEND_AVAILABLE = False
 
-from ..console import console
+from ..console import console, watch_status
 
 
 def clean_command(
@@ -74,7 +74,7 @@ def clean_command(
         console.print(f"[highlight]📁 {loc_name}[/] ([path]{path}[/path])")
         
         # Scan
-        with console.status(f"[info]Scanning {loc_name}..."):
+        with watch_status(f"[info]Scanning {loc_name}..."):
             try:
                 scan_result = scan_directory(str(path))
             except Exception as e:
@@ -92,7 +92,7 @@ def clean_command(
             console.print(f"  [warning]⚠ Planner not available yet[/]\n")
             continue
         
-        with console.status("Planning..."):
+        with watch_status("Planning..."):
             try:
                 planner = PlannerAgent()
                 plan = planner.generate(
