@@ -4,7 +4,7 @@
     "identifier": "com.sentinel.app",
     "build": {
         "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build && npm run export",
+        "beforeBuildCommand": "npm run build",
         "devUrl": "http://localhost:3000",
         "frontendDist": "../out"
     },

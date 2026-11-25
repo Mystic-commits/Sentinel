@@ -60,7 +60,7 @@ fn launch_backend() -> Result<Child, String> {
 /// Health check the backend server
 async fn wait_for_backend(max_attempts: u32) -> Result<(), String> {
     let client = reqwest::Client::new();
-    let health_url = "http://localhost:8000/health";
+    let health_url = "http://127.0.0.1:8000/api/health";
     
     for i in 0..max_attempts {
         println!("🏥 Health check attempt {}/{}", i + 1, max_attempts);
