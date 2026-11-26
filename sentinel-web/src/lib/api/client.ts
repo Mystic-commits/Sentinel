@@ -1,4 +1,4 @@
-import { getAccessToken } from './access';
+import { getAccessToken, getApiUrl } from './access';
 
 /**
  * API Client
@@ -6,20 +6,12 @@ import { getAccessToken } from './access';
  * HTTP client for Sentinel API endpoints.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-
 class APIClient {
-    private baseURL: string;
-
-    constructor(baseURL: string) {
-        this.baseURL = baseURL;
-    }
-
     private async request<T>(
         endpoint: string,
         options: RequestInit = {}
     ): Promise<T> {
-        const url = `${this.baseURL}${endpoint}`;
+        const url = `${getApiUrl()}${endpoint}`;
 
         const response = await fetch(url, {
             ...options,
@@ -111,4 +103,4 @@ class APIClient {
     }
 }
 
-export const api = new APIClient(API_URL);
+export const api = new APIClient();

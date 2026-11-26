@@ -5,9 +5,6 @@
         "main"
     ],
     "permissions": [
-        "core:default",
-        "fs:default",
-        "http:default",
-        "shell:open"
+        "core:default"
     ]
 }

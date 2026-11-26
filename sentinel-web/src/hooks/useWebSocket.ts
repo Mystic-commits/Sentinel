@@ -10,9 +10,8 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useStore } from './useStore';
 import { LogEntry, TaskState, TaskResult } from '@/lib/types/task';
 
-import { getAccessToken } from '@/lib/api/access';
+import { getAccessToken, getEventsUrl } from '@/lib/api/access';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/events';
 const RECONNECT_DELAY = 3000; // 3 seconds
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -236,7 +235,7 @@ export function useWebSocket() {
         setConnectionState('connecting');
         console.log('🔌 Connecting to WebSocket...');
 
-        const ws = new WebSocket(WS_URL, ['sentinel.events.v1', `auth.${getAccessToken()}`]);
+        const ws = new WebSocket(getEventsUrl(), ['sentinel.events.v1', `auth.${getAccessToken()}`]);
         wsRef.current = ws;
 
         ws.onopen = () => {

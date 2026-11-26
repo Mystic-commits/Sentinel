@@ -11,8 +11,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "tauri:build:mac": "tauri build --target universal-apple-darwin",
-    "tauri:build:win": "tauri build --target x86_64-pc-windows-msvc"
+    "tauri:build:mac": "tauri build --bundles app,dmg",
+    "tauri:build:win": "tauri build --bundles msi",
+    "desktop:backend": "node scripts/build-sidecar.mjs"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "5.3.0",
@@ -28,8 +29,8 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "@tauri-apps/api": "^2.10.1",
-    "@tauri-apps/cli": "^2.10.0",
+    "@tauri-apps/api": "2.12.5",
+    "@tauri-apps/cli": "2.12.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

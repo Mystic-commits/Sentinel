@@ -16,6 +16,7 @@ export default function ExecutionHistory() {
     const [receipts, setReceipts] = useState<Awaited<ReturnType<typeof api.history>> | null>(null);
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
+    const [pendingUndo, setPendingUndo] = useState<string | null>(null);
 
     async function update(taskId?: string) {
         setBusy(true);
@@ -48,17 +49,20 @@ export default function ExecutionHistory() {
                             <span>{receipt.created_at} UTC</span>
                             <span title={receipt.task_id}>{receipt.task_id.slice(0, 13)}</span>
                             <span>{stateLabels[receipt.state] ?? receipt.state}</span>
-                            {receipt.state === 'completed' && (
-                                <button
-                                    type="button"
-                                    disabled={busy}
-                                    className="underline"
-                                    onClick={() => {
-                                        if (window.confirm('Restore the files moved by this task?')) void update(receipt.task_id);
-                                    }}
-                                >
-                                    Undo
-                                </button>
+                            {receipt.state === 'completed' && pendingUndo === receipt.task_id ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span>Restore the files moved by this task?</span>
+                                    <button type="button" className="workspace-secondary"
+                                        onClick={() => setPendingUndo(null)}>Cancel</button>
+                                    <button type="button" className="workspace-action" disabled={busy}
+                                        onClick={() => {
+                                            setPendingUndo(null);
+                                            void update(receipt.task_id);
+                                        }}>Restore files</button>
+                                </div>
+                            ) : receipt.state === 'completed' && (
+                                <button type="button" disabled={busy} className="underline"
+                                    onClick={() => setPendingUndo(receipt.task_id)}>Undo</button>
                             )}
                         </li>
                     ))}

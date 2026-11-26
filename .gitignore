@@ -55,3 +55,6 @@ secrets.json
 
 # Next.js generated type declarations
 /sentinel-web/next-env.d.ts
+
+/sentinel-web/src-tauri/binaries/
+/sentinel-web/src-tauri/gen/

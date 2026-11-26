@@ -1,10 +1,14 @@
 'use client';
 
 import SiteMark from '@/components/landing/SiteMark';
-import { FormEvent, useState } from 'react';
+import { invoke, isTauri } from '@tauri-apps/api/core';
+import { FormEvent, useEffect, useState, useSyncExternalStore } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { api } from '@/lib/api/client';
-import { setAccessToken } from '@/lib/api/access';
+import { setAccessToken, setDesktopConnection } from '@/lib/api/access';
+
+const subscribeToShell = () => () => {};
+const browserSnapshot = () => false;
 
 function ConnectedDashboard({ children }: { children: React.ReactNode }) {
     useWebSocket();
@@ -17,6 +21,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const [connecting, setConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const desktop = useSyncExternalStore(subscribeToShell, isTauri, browserSnapshot);
+
+    useEffect(() => {
+        if (!desktop) return;
+        let cancelled = false;
+
+        async function start() {
+            try {
+                for (let attempt = 0; attempt < 80 && !cancelled; attempt++) {
+                    const connection = await invoke<{ port: number; token: string } | null>('desktop_connection');
+                    if (cancelled) return;
+                    if (connection) {
+                        setDesktopConnection(connection.port, connection.token);
+                        await api.getTasks();
+                        if (!cancelled) setConnected(true);
+                        return;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 250));
+                }
+                throw new Error('Sentinel took too long to start. Close and reopen the app to retry.');
+            } catch (error) {
+                if (!cancelled) setError(error instanceof Error ? error.message : String(error));
+            }
+        }
+        void start();
+        return () => { cancelled = true; };
+    }, [desktop]);
 
     async function connect(event: FormEvent) {
         event.preventDefault();
@@ -36,6 +68,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     if (connected) return <ConnectedDashboard>{children}</ConnectedDashboard>;
+
+    if (desktop) {
+        return (
+            <main className="mx-auto max-w-lg px-5 py-14 sm:py-24">
+                <div className="mb-9 flex items-center gap-2.5 text-xl font-extrabold"><SiteMark />Sentinel</div>
+                <h1 className="mb-3 text-3xl font-extrabold">{error ? 'Could not open the workspace' : 'Opening workspace…'}</h1>
+                {error && <p role="alert" className="text-txt-secondary">{error}</p>}
+            </main>
+        );
+    }
 
     return (
         <main className="mx-auto max-w-lg px-5 py-14 sm:py-24">
