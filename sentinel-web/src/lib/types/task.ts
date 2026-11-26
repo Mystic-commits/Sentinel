@@ -33,6 +33,7 @@ export interface FileOperation {
 }
 
 export interface Plan {
+    planningSource?: 'ai' | 'rules';
     id: string;
     task_id: string;
     operations: FileOperation[];

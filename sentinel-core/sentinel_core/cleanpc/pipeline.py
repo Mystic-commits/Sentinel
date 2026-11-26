@@ -140,7 +140,11 @@ class CleanPCPipeline:
         
         selected_root = Path(target_dirs[0]).resolve() if len(target_dirs) == 1 else None
 
+        planning_source = "ai"
+
         def fallback():
+            nonlocal planning_source
+            planning_source = "rules"
             if scoped_moves_only and selected_root is not None:
                 from sentinel_core.models.enums import ActionType
                 from sentinel_core.models.planner import PlanAction
@@ -220,6 +224,7 @@ class CleanPCPipeline:
         # 9. Generate summary statistics
         summary = self._generate_summary(classifications, plan)
         summary["truncated"] = truncated
+        summary["planning_source"] = planning_source
         
         logger.info(f"Clean My PC scan complete. Found {summary['total_files']} files, "
                    f"{len(plan.actions)} operations planned")

@@ -90,6 +90,7 @@ export function useWebSocket() {
                     const mappedPlan = {
                         ...backendPlan,
                         operations,
+                        planningSource: data.summary?.planning_source,
                     };
 
                     updateTask(task_id, {

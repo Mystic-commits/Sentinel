@@ -32,6 +32,12 @@ export default function RightPanel() {
                 ))}
             </div>
 
+            {activeTask?.plan?.planningSource && (
+                <p className="border-b border-edge px-3 py-2 text-sm text-txt-secondary sm:px-5">
+                    Plan from {activeTask.plan.planningSource === 'ai' ? 'local AI' : 'local rules'}
+                </p>
+            )}
+
             {/* Content */}
             <div className="min-w-0 flex-1">
                 {activePanel === 'logs' && <LogsPanel task={activeTask} />}

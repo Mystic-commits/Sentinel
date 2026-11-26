@@ -22,6 +22,8 @@ npm run dev
 
 Open [the local dashboard](http://localhost:3000/dashboard), enter the access token printed in the backend terminal, then enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope.
 
+The dashboard uses local rules by default. Enable **Use local AI (Ollama)** to send folder metadata and optional instructions to your local model. The review identifies the source of the plan, including when Sentinel falls back to rules.
+
 ### Review and apply a plan from the terminal
 
 Run these commands from `sentinel-core`. Substitute the task ID printed by the plan command and the action numbers you want to approve.

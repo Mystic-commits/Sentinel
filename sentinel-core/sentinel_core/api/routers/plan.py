@@ -50,6 +50,8 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     
     from pathlib import Path
 
+    if not request.use_ai and request.user_prompt:
+        raise HTTPException(status_code=422, detail="Custom instructions require local AI")
     if not request.path:
         raise HTTPException(status_code=422, detail="Select a folder to plan")
     selected_root = Path(request.path).expanduser().resolve()
@@ -69,7 +71,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             # Initialize pipeline components
             # Note: In a real app, these should be dependency injected or singletons
             ollama = OllamaClient()
-            planner = PlannerAgent(ollama, model_name="llama2")
+            planner = PlannerAgent(ollama, model_name="llama2", user_prompt=request.user_prompt or "")
             safety = SafetyValidator()
             executor = Executor()
             
@@ -80,7 +82,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
                     lambda: asyncio.run(pipeline.scan_and_plan(
                         task_id, target_dirs=[path], scoped_moves_only=True,
                         max_entries=MAX_SCAN_ENTRIES, max_scan_seconds=MAX_SCAN_SECONDS,
-                        max_model_files=MAX_MODEL_FILES,
+                        max_model_files=MAX_MODEL_FILES, use_ai=request.use_ai,
                     ))
                 )
             finally:
@@ -101,7 +103,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             # Broadcast plan ready
             
             # Convert PlanSchema to dict for JSON serialization
-            plan_data = plan.dict() if hasattr(plan, 'dict') else plan
+            plan_data = plan.model_dump(mode='json')
             
             await ws_manager.broadcast(WebSocketEvent(
                 event_type=EventType.PLAN_READY,

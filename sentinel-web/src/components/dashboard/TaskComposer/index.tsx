@@ -6,6 +6,8 @@ import { useStore } from '@/hooks/useStore';
 import { api } from '@/lib/api/client';
 
 export default function TaskComposer() {
+    const [useAi, setUseAi] = useState(false);
+    const [prompt, setPrompt] = useState('');
     const [folder, setFolder] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,7 +21,7 @@ export default function TaskComposer() {
         setIsSubmitting(true);
 
         try {
-            const response = await api.createPlan(null, 'file_organization', undefined, path);
+            const response = await api.createPlan(path, useAi, useAi ? prompt.trim() : undefined);
             const now = new Date().toISOString();
             addTask({
                 id: response.task_id,
@@ -52,6 +54,18 @@ export default function TaskComposer() {
                     {isSubmitting ? 'Starting scan…' : 'Scan and plan'}
                 </button>
             </div>
+            <label className="mt-3 flex items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" checked={useAi} disabled={isSubmitting}
+                    onChange={event => setUseAi(event.target.checked)} className="size-4 accent-[#263bc0]" />
+                Use local AI (Ollama)
+            </label>
+            {useAi && (
+                <label className="mt-3 grid gap-2 text-sm font-semibold">
+                    Instructions (optional)
+                    <textarea value={prompt} onChange={event => setPrompt(event.target.value)}
+                        maxLength={1000} rows={2} className="workspace-input p-3 text-base font-normal" />
+                </label>
+            )}
             {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         </form>
     );

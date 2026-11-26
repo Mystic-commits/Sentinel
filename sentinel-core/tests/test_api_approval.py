@@ -166,3 +166,44 @@ def test_apply_rejects_changed_source(tmp_path, monkeypatch):
         assert client.get("/api/history").json() == []
     assert source.read_text() == "changed after review"
     assert not destination.exists()
+
+
+@pytest.mark.parametrize("mode", ["rules", "ai", "unsafe_ai"])
+def test_planning_mode_reports_actual_source_and_preserves_scope(tmp_path, monkeypatch, mode):
+    from sentinel_core.planner.planner_agent import PlannerAgent
+
+    folder = tmp_path / "sample"
+    folder.mkdir()
+    source = folder / "notes.txt"
+    source.write_text("fixture")
+    outside = tmp_path / "outside.txt"
+    model_requests = []
+
+    def fake_plan(self, task_id, scan_result, rule_matches, preferences):
+        model_requests.append(self.user_prompt)
+        assert scan_result.files[0].preview_text is None
+        destination = outside if mode == "unsafe_ai" else folder / "notes" / source.name
+        return PlanSchema(
+            task_id=task_id, scope_path=str(tmp_path),
+            actions=[move(source, destination)], summary="Fixture model result",
+        )
+
+    monkeypatch.setattr(PlannerAgent, "create_plan", fake_plan)
+    payload = {"path": str(folder), "use_ai": mode != "rules"}
+    if mode != "rules":
+        payload["user_prompt"] = "Group the notes"
+    with authorized_client() as client:
+        response = client.post("/api/plan", json=payload)
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+        try:
+            task = task_store[task_id]
+            expected_source = "ai" if mode == "ai" else "rules"
+            assert task["summary"]["planning_source"] == expected_source
+            assert model_requests == (["Group the notes"] if mode != "rules" else [])
+            assert task["plan"].scope_path == str(folder.resolve())
+            assert len(task["plan"].actions) == 1
+            assert Path(task["plan"].actions[0].destination_path).is_relative_to(folder)
+            assert source.is_file() and not outside.exists()
+        finally:
+            task_store.pop(task_id, None)

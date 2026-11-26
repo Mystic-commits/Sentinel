@@ -28,7 +28,8 @@ class PlanRequest(BaseModel):
     
     scan_id: Optional[str] = Field(None, description="ID from previous scan")
     path: Optional[str] = Field(None, description="Path to scan and plan")
-    user_prompt: Optional[str] = Field(None, description="Custom instructions for AI")
+    user_prompt: Optional[str] = Field(None, max_length=1000, description="Custom instructions for local AI")
+    use_ai: bool = True
     
     class Config:
         json_schema_extra = {
