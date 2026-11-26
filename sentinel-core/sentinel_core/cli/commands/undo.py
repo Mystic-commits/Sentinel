@@ -33,8 +33,8 @@ def undo_command(
     try:
         state = receipt_state(task_id)
         if state is not None:
-            if state != "completed":
-                raise ValueError("Only a completed, eligible receipt can be undone")
+            if state not in ("completed", "partial"):
+                raise ValueError("Only a completed or partially completed receipt can be undone")
             if not yes and not confirm("Restore the files from this receipt?"):
                 return
             result = undo_recorded(task_id)
