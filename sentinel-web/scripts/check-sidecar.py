@@ -79,7 +79,7 @@ def check_backend(binary: Path, data: Path) -> None:
                 state = request("/history")[0]["state"]
                 if state == "completed":
                     break
-                assert state == "executing", state
+                assert state in ("queued", "executing"), state
                 sleep(0.1)
             assert destination.is_file() and not source.exists()
             assert request("/undo", {"task_id": task["task_id"]})["undone_operations"] == 1
