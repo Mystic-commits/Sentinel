@@ -6,7 +6,6 @@ This is the ONLY module that performs filesystem operations.
 """
 
 import os
-import shutil
 from typing import Optional, List
 from pathlib import Path
 from sqlmodel import Session
@@ -17,6 +16,7 @@ from sentinel_core.models.executor import ExecutionResult
 from sentinel_core.models.logging import ExecutionLogEntry
 from sentinel_core.models.enums import ActionType
 from sentinel_core.executor.log_writer import LogWriter
+from sentinel_core.executor.rename import rename_without_replacing
 
 
 def execute_plan(
@@ -235,7 +235,7 @@ def _move_file(source: str, destination: str) -> None:
         os.makedirs(dest_dir, exist_ok=True)
     
     # Move the file
-    shutil.move(source, destination)
+    rename_without_replacing(source, destination)
 
 
 def _rename_file(source: str, destination: str) -> None:
@@ -298,24 +298,13 @@ def _rollback_operations(
     Raises:
         Exception: If critical rollback operations fail
     """
-    # Reverse the operations
+    failures = []
     for action in reversed(completed_operations):
+        if action.type not in (ActionType.MOVE, ActionType.RENAME):
+            continue
         try:
-            if action.type == ActionType.MOVE:
-                # Move back to original location
-                if os.path.exists(action.destination_path):
-                    shutil.move(action.destination_path, action.source_path)
-                    
-            elif action.type == ActionType.RENAME:
-                # Rename back to original name
-                if os.path.exists(action.destination_path):
-                    shutil.move(action.destination_path, action.source_path)
-                    
-            elif action.type == ActionType.DELETE:
-                # Cannot rollback delete - file is in trash
-                # User must manually restore from trash
-                continue
-            
+            rename_without_replacing(action.destination_path, action.source_path)
+
             if logger:
                 log_entry = logger.log_action(
                     task_id=task_id,
@@ -327,6 +316,7 @@ def _rollback_operations(
                 execution_logs.append(log_entry)
                 
         except Exception as e:
+            failures.append(str(e))
             # Log rollback failure but continue trying to rollback others
             if logger:
                 log_entry = logger.log_action(
@@ -338,3 +328,6 @@ def _rollback_operations(
                     error_message=f"Rollback failed: {str(e)}"
                 )
                 execution_logs.append(log_entry)
+
+    if failures:
+        raise RuntimeError(" | ".join(failures))

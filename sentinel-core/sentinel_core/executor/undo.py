@@ -5,7 +5,6 @@ Handles reversing executed file operations.
 """
 
 import os
-import shutil
 from typing import List, Optional, Tuple
 from datetime import datetime
 from sqlmodel import Session, select
@@ -14,6 +13,7 @@ from sentinel_core.models.logging import ExecutionLogEntry, TaskRecord
 from sentinel_core.models.executor import ExecutionResult, UndoOperation
 from sentinel_core.models.enums import ActionType
 from sentinel_core.executor.log_writer import LogWriter
+from sentinel_core.executor.rename import rename_without_replacing
 
 
 class UndoManager:
@@ -89,7 +89,7 @@ class UndoManager:
                             raise FileExistsError(
                                 f"Cannot undo: original path already exists: {log.source_path}"
                             )
-                        shutil.move(log.destination_path, log.source_path)
+                        rename_without_replacing(log.destination_path, log.source_path)
                         successful_actions += 1
                     else:
                         raise FileNotFoundError(
@@ -103,7 +103,7 @@ class UndoManager:
                             raise FileExistsError(
                                 f"Cannot undo: original path already exists: {log.source_path}"
                             )
-                        shutil.move(log.destination_path, log.source_path)
+                        rename_without_replacing(log.destination_path, log.source_path)
                         successful_actions += 1
                     else:
                         raise FileNotFoundError(

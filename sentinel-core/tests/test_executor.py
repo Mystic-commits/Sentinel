@@ -273,3 +273,30 @@ class TestBatchOperations:
         # All files should be in destination
         for i in range(5):
             assert Path(dest_dir, f"file{i}.txt").exists()
+
+
+@pytest.mark.parametrize("collision", ["file", "directory"])
+def test_move_preserves_destination_created_after_preflight(tmp_path, monkeypatch, collision):
+    from sentinel_core.executor import executor
+
+    source = tmp_path / "source.txt"
+    source.write_text("source")
+    destination = tmp_path / "new" / "target"
+    real_makedirs = executor.os.makedirs
+
+    def create_destination(path, **kwargs):
+        real_makedirs(path, **kwargs)
+        if collision == "directory":
+            destination.mkdir()
+        else:
+            destination.write_text("destination")
+
+    monkeypatch.setattr(executor.os, "makedirs", create_destination)
+    with pytest.raises(FileExistsError):
+        executor._move_file(str(source), str(destination))
+
+    assert source.read_text() == "source"
+    if collision == "directory":
+        assert list(destination.iterdir()) == []
+    else:
+        assert destination.read_text() == "destination"
