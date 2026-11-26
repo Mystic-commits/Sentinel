@@ -1,0 +1,55 @@
+name: Desktop preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/desktop.yml'
+      - 'sentinel-core/**'
+      - 'sentinel-web/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            bundles: app,dmg
+          - runner: windows-2025
+            bundles: msi
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sentinel-web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked backend and packager
+        working-directory: sentinel-core
+        run: |
+          python -m pip install poetry==2.3.4
+          poetry install --with desktop
+      - name: Install locked frontend
+        working-directory: sentinel-web
+        run: npm ci
+      - name: Build native desktop preview
+        working-directory: sentinel-web
+        run: npm run tauri:build -- --bundles ${{ matrix.bundles }} -- --locked
+      - name: Smoke test the frozen backend
+        working-directory: sentinel-core
+        run: poetry run python ../sentinel-web/scripts/check-sidecar.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-desktop-preview-${{ matrix.runner }}
+          path: |
+            sentinel-web/src-tauri/target/release/bundle/dmg/*.dmg
+            sentinel-web/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error

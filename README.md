@@ -48,7 +48,7 @@ Use `poetry run sentinel --help` to see all commands. Download availability is l
 
 ## Release status
 
-Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The experimental desktop launcher inherits the token when launched from the configured shell. Automated desktop pairing, per-session event isolation, filesystem race handling, and hard timeouts for blocked filesystem calls need further work. The developer dashboard can apply selected moves and renames. Pending plans live in memory. Completed dashboard moves have SQLite receipts. Use **Show execution history** to undo eligible moves after restarting the backend. Undo blocks if a file changed or an original path is occupied. Interrupted apply or undo receipts require manual inspection. Signed desktop installers and a supported package-registry installation remain release milestones.
+Run the development service on loopback only. The local dashboard uses a single-user access token for HTTP and WebSocket requests. The desktop preview can bundle the local backend and pair automatically. See the [desktop build guide](sentinel-web/BUILDING.md). Per-session event isolation, filesystem race handling, and hard timeouts for blocked filesystem calls need further work. The developer dashboard can apply selected moves and renames. Pending plans live in memory. Completed dashboard moves have SQLite receipts. Use **Show execution history** to undo eligible moves after restarting the backend. Undo blocks if a file changed or an original path is occupied. Interrupted apply or undo receipts require manual inspection. Signed desktop installers and a supported package-registry installation remain release milestones.
 
 ## Checks
 
