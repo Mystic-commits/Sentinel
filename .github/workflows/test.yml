@@ -108,6 +108,10 @@ jobs:
           cd sentinel-web
           npm ci
       
+      - name: Audit locked npm dependencies
+        working-directory: sentinel-web
+        run: npm audit --audit-level=high
+
       - name: Run linter
         run: |
           cd sentinel-web
