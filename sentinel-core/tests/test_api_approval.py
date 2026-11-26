@@ -200,6 +200,10 @@ def test_planning_mode_reports_actual_source_and_preserves_scope(tmp_path, monke
             task = task_store[task_id]
             expected_source = "ai" if mode == "ai" else "rules"
             assert task["summary"]["planning_source"] == expected_source
+            detail = client.get(f"/api/tasks/{task_id}")
+            assert detail.status_code == 200
+            assert detail.json()["planning_source"] == expected_source
+            assert detail.json()["total_actions"] == 1
             assert model_requests == (["Group the notes"] if mode != "rules" else [])
             assert task["plan"].scope_path == str(folder.resolve())
             assert len(task["plan"].actions) == 1

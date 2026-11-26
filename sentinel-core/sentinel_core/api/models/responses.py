@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from sentinel_core.models.enums import TaskState
+from sentinel_core.models.planner import PlanSchema
 
 
 class ScanResponse(BaseModel):
@@ -119,6 +120,8 @@ class TaskDetailResponse(BaseModel):
     state: TaskState
     summary: str
     created_at: datetime
+    plan: PlanSchema | None = None
+    planning_source: str | None = None
     completed_at: Optional[datetime] = None
     total_actions: int
     successful_actions: int

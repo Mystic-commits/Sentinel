@@ -4,6 +4,7 @@ In-Memory Task Store
 Temporary storage for tasks and plans until database integration is complete.
 """
 
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 # Global dictionary to store task data
@@ -13,7 +14,7 @@ task_store: Dict[str, Any] = {}
 def save_task(task_id: str, data: Dict[str, Any]):
     """Save or update task data."""
     if task_id not in task_store:
-        task_store[task_id] = {}
+        task_store[task_id] = {"created_at": datetime.now(timezone.utc)}
     
     task_store[task_id].update(data)
 

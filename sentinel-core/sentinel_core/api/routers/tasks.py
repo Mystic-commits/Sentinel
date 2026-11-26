@@ -87,13 +87,17 @@ async def get_task(task_id: str):
             detail=f"Task not found: {task_id}"
         )
     
-    # Construct response
-    # This needs to map dictionary fields to Pydantic model
+    plan = task_data.get("plan")
+    summary = task_data.get("summary")
+    result = task_data.get("result") or {}
     return TaskDetailResponse(
         task_id=task_id,
         state=task_data.get("state", TaskState.SCANNING),
-        created_at=datetime.utcnow(), # Placeholder
-        plan=task_data.get("plan"),
-        summary=task_data.get("summary") if isinstance(task_data.get("summary"), dict) else {},
-        result=task_data.get("result")
+        created_at=task_data.get("created_at") or datetime.utcnow(),
+        plan=plan,
+        summary=plan.summary if plan else summary if isinstance(summary, str) else "",
+        planning_source=summary.get("planning_source") if isinstance(summary, dict) else None,
+        total_actions=len(plan.actions) if plan else 0,
+        successful_actions=result.get("success", 0),
+        failed_actions=result.get("failed", 0),
     )
