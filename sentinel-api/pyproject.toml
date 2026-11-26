@@ -8,8 +8,8 @@ packages = [{include = "sentinel_api"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.109.0"
-uvicorn = {extras = ["standard"], version = "^0.27.0"}
+fastapi = "^0.165.0"
+uvicorn = {extras = ["standard"], version = "^0.54.0"}
 sentinel-core = {path = "../sentinel-core", develop = true}
 
 [build-system]
