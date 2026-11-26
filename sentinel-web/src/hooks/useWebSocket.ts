@@ -27,7 +27,7 @@ interface WebSocketMessage {
 export function useWebSocket() {
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectAttemptsRef = useRef(0);
-    const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
 
     const { updateTask, addLog, setConnected } = useStore();
@@ -227,7 +227,7 @@ export function useWebSocket() {
         }
     }, [updateTask, addLog]);
 
-    const connect = useCallback(() => {
+    const connect = useCallback(function connect() {
         // Don't reconnect if already connected
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             return;
