@@ -86,7 +86,25 @@ class APIClient {
     }
 
     async history() {
-        return this.request<{ task_id: string; state: string; created_at: string }[]>('/history');
+        return this.request<{
+            task_id: string;
+            state: string;
+            created_at: string;
+            operation_count: number;
+            applied_count: number;
+            restored_count: number;
+            uncertain_count: number;
+        }[]>('/history');
+    }
+
+    async receiptDetails(taskId: string) {
+        return this.request<{
+            index: number;
+            source: string;
+            destination: string;
+            apply_state: 'pending' | 'started' | 'done';
+            undo_state: 'pending' | 'started' | 'done';
+        }[]>(`/history/${encodeURIComponent(taskId)}`);
     }
 
     // Undo task
