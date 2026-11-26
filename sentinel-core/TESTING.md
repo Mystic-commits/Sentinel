@@ -282,3 +282,16 @@ See existing tests for examples:
 - `tests/test_safety.py` - Safety validation
 - `tests/test_executor.py` - File operations
 - `tests/test_cleanpc.py` - Full pipeline
+
+## Compare rules and local AI
+
+Run from `sentinel-core` to evaluate generated fixture folders without applying any file changes.
+
+```sh
+poetry run python -m sentinel_core.planner.evaluate --mode rules
+poetry run python -m sentinel_core.planner.evaluate --mode both --model llama2
+```
+
+The second command uses the named model in your local Ollama service. The JSON report includes the requested and actual planner, exact expected moves matched, unexpected moves, duplicate proposals, out-of-scope actions, and elapsed planning time for each fixture. Count AI-to-rules fallbacks separately when evaluating model quality. The report scores the plans Sentinel returns after validation. It exits with a failure if any returned move falls outside its fixture folder.
+
+The fixtures cover grouping by file type, a custom destination with a Unicode filename, and leaving an already organized or unknown file alone. Rules-only mode deliberately does not satisfy the custom-destination request.
