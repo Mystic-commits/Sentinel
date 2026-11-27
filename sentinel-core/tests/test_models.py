@@ -1,8 +1,9 @@
-import pytest
 from datetime import datetime
-from sentinel_core.models import (
-    FileMetadata, FileType, PlanSchema, PlanAction, ActionType
-)
+
+import pytest
+
+from sentinel_core.models import ActionType, FileMetadata, FileType, PlanAction, PlanSchema
+
 
 def test_file_metadata_valid():
     """Test valid file metadata creation."""
@@ -13,10 +14,11 @@ def test_file_metadata_valid():
         size_bytes=1024,
         created_at=datetime.now(),
         modified_at=datetime.now(),
-        file_type=FileType.DOCUMENT
+        file_type=FileType.DOCUMENT,
     )
     assert fm.name == "test.txt"
     assert fm.file_type == FileType.DOCUMENT
+
 
 def test_plan_schema_validation():
     """Test strict validation of PlanSchema."""
@@ -30,12 +32,13 @@ def test_plan_schema_validation():
                 source_path="/tmp/a",
                 destination_path="/tmp/b",
                 reason="test",
-                confidence=0.9
+                confidence=0.9,
             )
         ],
-        summary="Moving items"
+        summary="Moving items",
     )
     assert len(plan.actions) == 1
+
 
 def test_plan_action_invalid_destination():
     """Test that MOVE requires a destination."""
@@ -43,7 +46,7 @@ def test_plan_action_invalid_destination():
         PlanAction(
             type=ActionType.MOVE,
             source_path="/tmp/a",
-            destination_path=None, # Should fail
+            destination_path=None,  # Should fail
             reason="test",
-            confidence=1.0
+            confidence=1.0,
         )

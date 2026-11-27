@@ -18,10 +18,15 @@ def batch(tmp_path, monkeypatch):
     for name in ("first.txt", "second.txt"):
         source = folder / name
         source.write_text(name)
-        actions.append(PlanAction(
-            type=ActionType.MOVE, source_path=str(source),
-            destination_path=str(folder / "organized" / name), confidence=1, reason="fixture",
-        ))
+        actions.append(
+            PlanAction(
+                type=ActionType.MOVE,
+                source_path=str(source),
+                destination_path=str(folder / "organized" / name),
+                confidence=1,
+                reason="fixture",
+            )
+        )
     return PlanSchema(task_id="test-journal", scope_path=str(folder), summary="", actions=actions)
 
 

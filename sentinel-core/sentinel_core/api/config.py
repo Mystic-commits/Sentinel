@@ -8,19 +8,18 @@ import re
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings
-from typing import List
 
 
 class Settings(BaseSettings):
     """
     Application settings.
-    
+
     Configuration can be overridden via environment variables prefixed with SENTINEL_.
     Example: SENTINEL_PORT=9000
     """
-    
+
     # CORS - localhost only for security
-    allowed_origins: List[str] = [
+    allowed_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
@@ -30,7 +29,7 @@ class Settings(BaseSettings):
         "tauri://localhost",
         "http://tauri.localhost",
     ]
-    
+
     access_token: SecretStr | None = None
 
     @field_validator("access_token")
@@ -42,15 +41,15 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "~/.sentinel/sentinel.db"
-    
+
     # Server
     host: str = "127.0.0.1"
     port: int = 8000
     reload: bool = False
-    
+
     # API
     api_prefix: str = "/api"
-    
+
     class Config:
         env_prefix = "SENTINEL_"
         case_sensitive = False

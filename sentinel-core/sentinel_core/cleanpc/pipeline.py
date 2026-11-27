@@ -6,17 +6,17 @@ Main orchestrator for the Clean My PC feature.
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 
-from sentinel_core.scanner.scanner import Scanner
-from sentinel_core.models.filesystem import ScanResult, FileMetadata
-from sentinel_core.models.preferences import PreferencesSchema
-from sentinel_core.cleanpc.classifiers import FileClassifier, FileClassification
+from sentinel_core.cleanpc.classifiers import FileClassification, FileClassifier
 from sentinel_core.cleanpc.rules import OrganizationRules
+from sentinel_core.executor import Executor
+from sentinel_core.models.filesystem import FileMetadata, ScanResult
+from sentinel_core.models.planner import PlanSchema
+from sentinel_core.models.preferences import PreferencesSchema
 from sentinel_core.planner.planner_agent import PlannerAgent
 from sentinel_core.safety.safety import SafetyValidator
-from sentinel_core.executor import Executor
-from sentinel_core.models.planner import PlanSchema
+from sentinel_core.scanner.scanner import Scanner
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CleanPCPipeline:
     """
     Orchestrates the Clean My PC workflow.
-    
+
     This pipeline:
     1. Scans target directories (Downloads, Desktop, Documents, Videos)
     2. Classifies files using heuristics
@@ -32,19 +32,14 @@ class CleanPCPipeline:
     4. Generates an AI-assisted plan
     5. Validates for safety
     6. Returns plan for user approval
-    
+
     Execution happens separately after user approval.
     """
-    
-    def __init__(
-        self,
-        planner: PlannerAgent,
-        safety: SafetyValidator,
-        executor: Executor
-    ):
+
+    def __init__(self, planner: PlannerAgent, safety: SafetyValidator, executor: Executor):
         """
         Initialize the pipeline.
-        
+
         Args:
             planner: Planner agent for generating organization plans
             safety: Safety validator for checking plans
@@ -55,31 +50,31 @@ class CleanPCPipeline:
         self.executor = executor
         self.classifier = FileClassifier()
         self.rules = OrganizationRules()
-    
+
     async def scan_and_plan(
         self,
         task_id: str,
-        target_dirs: Optional[List[str]] = None,
-        preferences: Optional[PreferencesSchema] = None,
+        target_dirs: list[str] | None = None,
+        preferences: PreferencesSchema | None = None,
         max_depth: int = 3,
         scoped_moves_only: bool = False,
         max_entries: int | None = None,
         max_scan_seconds: float | None = None,
         max_model_files: int | None = None,
-        use_ai: bool = True
-    ) -> Dict[str, Any]:
+        use_ai: bool = True,
+    ) -> dict[str, Any]:
         """
         Scan directories and generate a cleanup plan.
-        
+
         This is the main entry point. It performs scanning and planning,
         but does NOT execute. Execution requires separate user approval.
-        
+
         Args:
             task_id: Unique task identifier
             target_dirs: Directories to scan (default: standard user dirs)
             preferences: User preferences
             max_depth: Maximum directory depth to scan
-            
+
         Returns:
             Dictionary containing:
                 - task_id: Task identifier
@@ -88,56 +83,59 @@ class CleanPCPipeline:
                 - classifications: List of file classifications
         """
         logger.info(f"Starting Clean My PC pipeline for task {task_id}")
-        
+
         # 1. Define target directories
         if target_dirs is None:
             target_dirs = self._get_default_target_dirs()
-        
+
         logger.info(f"Scanning directories: {target_dirs}")
-        
+
         # 2. Scan all directories
-        all_files: List[FileMetadata] = []
-        scan_errors: List[str] = []
+        all_files: list[FileMetadata] = []
+        scan_errors: list[str] = []
         truncated = False
-        
+
         for dir_path in target_dirs:
             try:
-                scanner = Scanner(dir_path, max_depth=max_depth, include_previews=not scoped_moves_only,
-                                  max_entries=max_entries, max_seconds=max_scan_seconds)
+                scanner = Scanner(
+                    dir_path,
+                    max_depth=max_depth,
+                    include_previews=not scoped_moves_only,
+                    max_entries=max_entries,
+                    max_seconds=max_scan_seconds,
+                )
                 scan_result = scanner.scan()
                 all_files.extend(scan_result.files)
                 scan_errors.extend(scan_result.errors)
                 truncated |= scan_result.truncated
             except Exception as e:
                 logger.error(f"Failed to scan {dir_path}: {e}")
-                scan_errors.append(f"Failed to scan {dir_path}: {str(e)}")
-        
+                scan_errors.append(f"Failed to scan {dir_path}: {e!s}")
+
         logger.info(f"Scanned {len(all_files)} files")
-        
+
         # 3. Classify files
         logger.info("Classifying files...")
         classifications = self.classifier.classify_all(all_files)
-        
+
         # 4. Apply organization rules
         logger.info("Applying organization rules...")
         rule_matches = self.rules.apply_rules(classifications)
-        
+
         logger.info(f"Found {len(rule_matches)} rule matches")
-        
+
         # 5. Create combined scan result for planner
         combined_scan = ScanResult(
-            root_path=", ".join(target_dirs),
-            files=all_files,
-            errors=scan_errors
+            root_path=", ".join(target_dirs), files=all_files, errors=scan_errors
         )
-        
+
         # 6. Generate AI plan
         logger.info("Generating AI plan...")
-        
+
         # Use default preferences if none provided
         if preferences is None:
             preferences = PreferencesSchema()
-        
+
         selected_root = Path(target_dirs[0]).resolve() if len(target_dirs) == 1 else None
 
         planning_source = "ai"
@@ -158,77 +156,100 @@ class CleanPCPipeline:
                     if destination in reserved_destinations or destination.exists():
                         continue
                     reserved_destinations.add(destination)
-                    actions.append(PlanAction(
-                        type=ActionType.MOVE,
-                        source_path=file.path,
-                        destination_path=str(destination),
-                        reason=f"Group {file.file_type.value} files",
-                        confidence=0.75,
-                    ))
-                return PlanSchema(task_id=task_id, scope_path=str(selected_root),
-                                  actions=actions, summary="Grouped files by type using local rules")
-            return self._create_fallback_plan(task_id, rule_matches, classifications)
+                    actions.append(
+                        PlanAction(
+                            type=ActionType.MOVE,
+                            source_path=file.path,
+                            destination_path=str(destination),
+                            reason=f"Group {file.file_type.value} files",
+                            confidence=0.75,
+                        )
+                    )
+                return PlanSchema(
+                    task_id=task_id,
+                    scope_path=str(selected_root),
+                    actions=actions,
+                    summary="Grouped files by type using local rules",
+                )
+            return self._create_fallback_plan(task_id, classifications)
 
         if not use_ai or (max_model_files is not None and len(all_files) > max_model_files):
             plan = fallback()
         else:
-            plan = self._plan_with_fallback(task_id, combined_scan, rule_matches, preferences, fallback)
+            plan = self._plan_with_fallback(
+                task_id, combined_scan, rule_matches, preferences, fallback
+            )
 
         if len(target_dirs) == 1:
-            plan = plan.model_copy(update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id})
+            plan = plan.model_copy(
+                update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id}
+            )
 
         if scoped_moves_only:
             from sentinel_core.models.enums import ActionType
 
             file_paths = {file.path for file in all_files}
-            plan = plan.model_copy(update={
-                "actions": [
-                    action for action in plan.actions
-                    if action.type in (ActionType.MOVE, ActionType.RENAME)
-                    and action.source_path in file_paths
-                ],
-                "folders_to_create": [],
-            })
+            plan = plan.model_copy(
+                update={
+                    "actions": [
+                        action
+                        for action in plan.actions
+                        if action.type in (ActionType.MOVE, ActionType.RENAME)
+                        and action.source_path in file_paths
+                    ],
+                    "folders_to_create": [],
+                }
+            )
 
         # 7. Safety validation
         logger.info("Validating plan for safety...")
         validation_result = self.safety.validate_plan(plan)
-        
+
         if not validation_result.is_safe:
             logger.warning(f"AI plan failed safety validation: {validation_result.errors}")
             logger.info("Falling back to rule-based plan...")
-            
+
             # Try fallback plan instead of aborting
             plan = fallback()
-            
-            logger.info(f"Fallback plan created with {len(plan.actions)} actions, {len(plan.folders_to_create)} folders")
-            
+
+            logger.info(
+                f"Fallback plan created with {len(plan.actions)} actions, {len(plan.folders_to_create)} folders"
+            )
+
             if len(target_dirs) == 1:
-                plan = plan.model_copy(update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id})
+                plan = plan.model_copy(
+                    update={"scope_path": str(Path(target_dirs[0]).resolve()), "task_id": task_id}
+                )
 
             # Validate fallback plan
             validation_result = self.safety.validate_plan(plan)
-            
-            logger.info(f"Fallback validation: is_safe={validation_result.is_safe}, errors={validation_result.errors}")
-            
+
+            logger.info(
+                f"Fallback validation: is_safe={validation_result.is_safe}, errors={validation_result.errors}"
+            )
+
             if not validation_result.is_safe:
-                logger.error(f"Fallback plan also failed safety validation: {validation_result.errors}")
+                logger.error(
+                    f"Fallback plan also failed safety validation: {validation_result.errors}"
+                )
                 raise ValueError(
                     f"Plan failed safety validation: {'; '.join(validation_result.errors)}"
                 )
-        
+
         # 8. Log warnings if any
         if validation_result.warnings:
             logger.warning(f"Plan warnings: {validation_result.warnings}")
-        
+
         # 9. Generate summary statistics
         summary = self._generate_summary(classifications, plan)
         summary["truncated"] = truncated
         summary["planning_source"] = planning_source
-        
-        logger.info(f"Clean My PC scan complete. Found {summary['total_files']} files, "
-                   f"{len(plan.actions)} operations planned")
-        
+
+        logger.info(
+            f"Clean My PC scan complete. Found {summary['total_files']} files, "
+            f"{len(plan.actions)} operations planned"
+        )
+
         return {
             "task_id": task_id,
             "plan": plan,
@@ -236,17 +257,17 @@ class CleanPCPipeline:
             "classifications": classifications,
             "validation": {
                 "is_safe": validation_result.is_safe,
-                "warnings": validation_result.warnings
-            }
+                "warnings": validation_result.warnings,
+            },
         }
-    
+
     def _plan_with_fallback(self, task_id, combined_scan, rule_matches, preferences, fallback):
         try:
             plan = self.planner.create_plan(
                 task_id=task_id,
                 scan_result=combined_scan,
                 rule_matches=rule_matches,
-                preferences=preferences
+                preferences=preferences,
             )
         except Exception as e:
             logger.error(f"Failed to generate plan: {e}")
@@ -256,68 +277,60 @@ class CleanPCPipeline:
         return plan
 
     async def execute_plan(
-        self,
-        task_id: str,
-        plan: PlanSchema,
-        dry_run: bool = True
-    ) -> Dict[str, Any]:
+        self, task_id: str, plan: PlanSchema, dry_run: bool = True
+    ) -> dict[str, Any]:
         """
         Execute an approved plan.
-        
+
         Args:
             task_id: Task identifier
             plan: Plan to execute
             dry_run: If True, only simulate execution
-            
+
         Returns:
             Execution result dictionary
         """
         logger.info(f"Executing plan for task {task_id} (dry_run={dry_run})")
-        
+
         result = await self.executor.execute_plan(plan, dry_run=dry_run)
-        
-        logger.info(f"Execution complete: {result.successful_actions} succeeded, "
-                   f"{result.failed_actions} failed")
-        
+
+        logger.info(
+            f"Execution complete: {result.successful_actions} succeeded, "
+            f"{result.failed_actions} failed"
+        )
+
         return {
             "task_id": task_id,
             "success_count": result.successful_actions,
             "failure_count": result.failed_actions,
             "errors": result.error_message,
-            "dry_run": dry_run
+            "dry_run": dry_run,
         }
-    
-    def _get_default_target_dirs(self) -> List[str]:
+
+    def _get_default_target_dirs(self) -> list[str]:
         """
         Get the default target directories for cleanup.
-        
+
         Returns:
             List of directory paths
         """
         home = Path.home()
-        
-        default_dirs = [
-            home / "Downloads",
-            home / "Desktop",
-            home / "Documents",
-            home / "Videos"
-        ]
-        
+
+        default_dirs = [home / "Downloads", home / "Desktop", home / "Documents", home / "Videos"]
+
         # Only return directories that exist
         return [str(d) for d in default_dirs if d.exists()]
-    
+
     def _generate_summary(
-        self,
-        classifications: List[FileClassification],
-        plan: PlanSchema
-    ) -> Dict[str, Any]:
+        self, classifications: list[FileClassification], plan: PlanSchema
+    ) -> dict[str, Any]:
         """
         Generate summary statistics.
-        
+
         Args:
             classifications: File classifications
             plan: Generated plan
-            
+
         Returns:
             Summary dictionary
         """
@@ -329,52 +342,50 @@ class CleanPCPipeline:
             "large_videos": sum(1 for c in classifications if c.is_large_video),
             "screenshots": sum(1 for c in classifications if c.is_screenshot),
             "duplicates": sum(1 for c in classifications if c.is_duplicate),
-            "total_size_mb": sum(c.file.size_bytes for c in classifications) // (1024 * 1024)
+            "total_size_mb": sum(c.file.size_bytes for c in classifications) // (1024 * 1024),
         }
-    
+
     def _create_fallback_plan(
-        self,
-        task_id: str,
-        rule_matches: List,
-        classifications: List[FileClassification]
+        self, task_id: str, classifications: list[FileClassification]
     ) -> PlanSchema:
         """
         Create a simple fallback plan if AI planning fails.
-        
+
         Uses the rule matches and classifications directly to create operations.
-        
+
         Args:
             task_id: Task identifier
             rule_matches: Rule match results
             classifications: File classifications
-            
+
         Returns:
             Simple plan based on classifications
         """
-        from sentinel_core.models.planner import PlanAction
-        from sentinel_core.models.enums import ActionType
         from pathlib import Path
-        
+
+        from sentinel_core.models.enums import ActionType
+        from sentinel_core.models.planner import PlanAction
+
         operations = []
         folders_to_create = set()
         home = Path.home()
-        
+
         # Get scope path (parent of first file)
         scope_paths = {str(Path(c.file.path).parent) for c in classifications if c.file}
         scope_path = sorted(scope_paths)[0] if scope_paths else str(home / "Desktop")
-        
+
         # Create operations from classifications
         for classification in classifications:
             if not classification.suggested_action:
                 continue
-                
+
             # Determine action type
             if classification.suggested_action == "delete":
                 op_type = ActionType.DELETE
                 dest_path = None
             elif classification.suggested_action == "move":
                 op_type = ActionType.MOVE
-                
+
                 # Expand tilde path and create absolute path
                 if classification.suggested_target and classification.suggested_target != "trash":
                     target = classification.suggested_target
@@ -383,11 +394,11 @@ class CleanPCPipeline:
                         target = str(home / target[2:])
                     elif target == "~":
                         target = str(home)
-                    
+
                     # Create destination path with filename
                     dest_dir = Path(target)
                     dest_path = str(dest_dir / Path(classification.file.path).name)
-                    
+
                     # Track folders to create
                     folders_to_create.add(str(dest_dir))
                 else:
@@ -396,25 +407,25 @@ class CleanPCPipeline:
             else:
                 # Unknown action, skip
                 continue
-            
+
             # Create the operation
             operation = PlanAction(
                 type=op_type,
                 source_path=classification.file.path,
                 destination_path=dest_path,
                 reason=f"{self._get_classification_reason(classification)}",
-                confidence=0.75  # Fallback plans have lower confidence
+                confidence=0.75,  # Fallback plans have lower confidence
             )
             operations.append(operation)
-        
+
         return PlanSchema(
             task_id=task_id,
             scope_path=scope_path,
             folders_to_create=sorted(folders_to_create),
             actions=operations,
-            summary=f"Organized {len(operations)} files using rule-based classification"
+            summary=f"Organized {len(operations)} files using rule-based classification",
         )
-    
+
     def _get_classification_reason(self, classification: FileClassification) -> str:
         """Get reason string for a classification."""
         if classification.is_installer:

@@ -1,31 +1,25 @@
 """Memory module for preference learning."""
 
+from .db import backup_to_json, create_tables, get_engine, initialize_database, restore_from_json
 from .memory import (
     PreferenceMemory,
-    load_preferences,
-    update_preferences,
-    reset_preferences,
     export_preferences,
-    import_preferences
-)
-from .db import (
-    get_engine,
-    create_tables,
-    backup_to_json,
-    restore_from_json,
-    initialize_database
+    import_preferences,
+    load_preferences,
+    reset_preferences,
+    update_preferences,
 )
 
 __all__ = [
     "PreferenceMemory",
-    "load_preferences",
-    "update_preferences",
-    "reset_preferences",
-    "export_preferences",
-    "import_preferences",
-    "get_engine",
-    "create_tables",
     "backup_to_json",
+    "create_tables",
+    "export_preferences",
+    "get_engine",
+    "import_preferences",
+    "initialize_database",
+    "load_preferences",
+    "reset_preferences",
     "restore_from_json",
-    "initialize_database"
+    "update_preferences",
 ]

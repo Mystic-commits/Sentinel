@@ -2,10 +2,11 @@
 
 from fastapi import APIRouter, HTTPException
 
+from sentinel_core.models.enums import TaskState
+
 from ..models.requests import UndoRequest
 from ..models.responses import UndoResponse
 from ..receipts import WriterBusy, history, receipt_details, receipt_state, undo_recorded
-from sentinel_core.models.enums import TaskState
 
 router = APIRouter()
 
@@ -32,7 +33,9 @@ def undo(request: UndoRequest):
     except WriterBusy as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     except (OSError, ValueError) as error:
-        raise HTTPException(status_code=409, detail="Undo blocked because the receipt or files changed") from error
+        raise HTTPException(
+            status_code=409, detail="Undo blocked because the receipt or files changed"
+        ) from error
 
     failed = bool(result.failed_actions or result.error_message)
     return UndoResponse(
@@ -41,8 +44,12 @@ def undo(request: UndoRequest):
         undone_operations=result.successful_actions,
         failed_operations=result.failed_actions,
         message=(
-            "Undo needs attention" if failed
-            else "Confirmed files restored. Check the remaining paths." if receipt_state(request.task_id) == "restored_with_uncertainty"
-            else "Files restored"
+            "Undo needs attention"
+            if failed
+            else (
+                "Confirmed files restored. Check the remaining paths."
+                if receipt_state(request.task_id) == "restored_with_uncertainty"
+                else "Files restored"
+            )
         ),
     )

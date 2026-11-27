@@ -1,11 +1,10 @@
 """Review and apply selected actions from a saved plan."""
 
 import sqlite3
-from typing import List, Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.text import Text
-from typing_extensions import Annotated
 
 from sentinel_core.api.receipts import record_start, run_recorded, verify_sources
 from sentinel_core.models.enums import ActionType
@@ -19,9 +18,16 @@ from .plan import show_plan
 
 def apply_command(
     task_id: Annotated[str, typer.Argument(help="Saved task ID")],
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Apply the reviewed selection without prompting")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Review without making changes")] = False,
-    action: Annotated[Optional[List[int]], typer.Option("--action", help="Action number to approve. Repeat to approve several.")] = None,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Apply the reviewed selection without prompting")
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Review without making changes")
+    ] = False,
+    action: Annotated[
+        Optional[list[int]],  # noqa: UP045 - Typer requires typing.Optional here
+        typer.Option("--action", help="Action number to approve. Repeat to approve several."),
+    ] = None,
 ):
     """Apply saved moves and renames with a durable undo receipt."""
     try:
@@ -32,10 +38,12 @@ def apply_command(
         selected = set(action or range(1, len(plan.actions) + 1))
         if not selected or min(selected) < 1 or max(selected) > len(plan.actions):
             raise ValueError("Select valid action numbers from the plan")
-        approved = plan.model_copy(update={
-            "actions": [plan.actions[index - 1] for index in sorted(selected)],
-            "folders_to_create": [],
-        })
+        approved = plan.model_copy(
+            update={
+                "actions": [plan.actions[index - 1] for index in sorted(selected)],
+                "folders_to_create": [],
+            }
+        )
         if any(item.type not in (ActionType.MOVE, ActionType.RENAME) for item in approved.actions):
             raise ValueError("The CLI preview supports moves and renames")
         show_plan(plan, selected)

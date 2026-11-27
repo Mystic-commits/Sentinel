@@ -6,7 +6,7 @@ from sentinel_core.planner.ollama_client import OllamaClient
 
 def test_evaluation_scores_rules_without_calling_ollama(monkeypatch):
     calls = []
-    monkeypatch.setattr(OllamaClient, "generate_json", lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(OllamaClient, "generate_json", lambda *args, **_kwargs: calls.append(args))
     reports = {report["case"]: report for report in asyncio.run(evaluate("rules", "fixture-model"))}
 
     assert not calls

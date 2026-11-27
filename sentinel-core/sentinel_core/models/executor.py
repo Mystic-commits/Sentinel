@@ -5,8 +5,9 @@ Defines result types for plan execution and undo operations.
 """
 
 from datetime import datetime
-from typing import List, Optional
+
 from pydantic import BaseModel
+
 from sentinel_core.models.enums import ActionType
 from sentinel_core.models.logging import ExecutionLogEntry
 
@@ -14,7 +15,7 @@ from sentinel_core.models.logging import ExecutionLogEntry
 class ExecutionResult(BaseModel):
     """
     Result of executing a plan.
-    
+
     Attributes:
         task_id: Unique identifier for the task
         total_actions: Total number of actions attempted
@@ -24,19 +25,20 @@ class ExecutionResult(BaseModel):
         error_message: Error message if execution failed
         rollback_performed: Whether rollback was attempted after error
     """
+
     task_id: str
     total_actions: int
     successful_actions: int
     failed_actions: int
-    execution_logs: List[ExecutionLogEntry]
-    error_message: Optional[str] = None
+    execution_logs: list[ExecutionLogEntry]
+    error_message: str | None = None
     rollback_performed: bool = False
 
 
 class UndoOperation(BaseModel):
     """
     Represents an operation that can be undone.
-    
+
     Attributes:
         task_id: Task this operation belongs to
         action_type: Type of action performed
@@ -46,10 +48,11 @@ class UndoOperation(BaseModel):
         can_undo: Whether this operation can be undone
         undo_reason: Explanation if undo is not possible
     """
+
     task_id: str
     action_type: ActionType
     original_path: str
-    new_path: Optional[str] = None
+    new_path: str | None = None
     timestamp: datetime
     can_undo: bool
-    undo_reason: Optional[str] = None  # Why undo might not be possible
+    undo_reason: str | None = None  # Why undo might not be possible

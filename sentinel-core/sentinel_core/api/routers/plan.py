@@ -4,16 +4,19 @@ Plan Router
 Endpoint for creating organization plans.
 """
 
+import logging
+import uuid
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+
+from sentinel_core.models.enums import TaskState
+
 from ..limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS, schedule_scan_job
 from ..memory import save_task
-from ..receipts import snapshot_sources
 from ..models.requests import PlanRequest
 from ..models.responses import PlanResponse
+from ..receipts import snapshot_sources
 from ..websocket.manager import ws_manager
-from sentinel_core.models.enums import TaskState
-import uuid
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +27,16 @@ router = APIRouter()
 async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     """
     Create an AI-powered organization plan.
-    
+
     Provide the absolute path of the folder to scan.
-    
+
     Args:
         request: Plan request
         background_tasks: FastAPI background tasks
-        
+
     Returns:
         PlanResponse with task_id and plan summary
-        
+
     Example:
         POST /api/plan
         {
@@ -42,14 +45,15 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
         }
     """
     import asyncio
-    from ..models.events import WebSocketEvent, EventType, PlanReadyEvent
+    from pathlib import Path
+
     from sentinel_core.cleanpc.pipeline import CleanPCPipeline
-    from sentinel_core.planner.planner_agent import PlannerAgent
-    from sentinel_core.safety.safety import SafetyValidator
     from sentinel_core.executor import Executor
     from sentinel_core.planner.ollama_client import OllamaClient
-    
-    from pathlib import Path
+    from sentinel_core.planner.planner_agent import PlannerAgent
+    from sentinel_core.safety.safety import SafetyValidator
+
+    from ..models.events import EventType, WebSocketEvent
 
     if not request.use_ai and request.user_prompt:
         raise HTTPException(status_code=422, detail="Custom instructions require local AI")
@@ -61,31 +65,41 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=422, detail="The selected folder is unavailable")
 
     task_id = f"task-{uuid.uuid4()}"
-    
+
     async def perform_planning(task_id: str, path: str):
         try:
-            await ws_manager.broadcast(WebSocketEvent(
-                event_type=EventType.PLANNING,
-                task_id=task_id,
-                message="Creating organization plan...",
-                data={},
-            ))
+            await ws_manager.broadcast(
+                WebSocketEvent(
+                    event_type=EventType.PLANNING,
+                    task_id=task_id,
+                    message="Creating organization plan...",
+                    data={},
+                )
+            )
             # Initialize pipeline components
             # Note: In a real app, these should be dependency injected or singletons
             ollama = OllamaClient()
-            planner = PlannerAgent(ollama, model_name="llama2", user_prompt=request.user_prompt or "")
+            planner = PlannerAgent(
+                ollama, model_name="llama2", user_prompt=request.user_prompt or ""
+            )
             safety = SafetyValidator()
             executor = Executor()
-            
+
             pipeline = CleanPCPipeline(planner, safety, executor)
-            
+
             try:
                 result = await asyncio.to_thread(
-                    lambda: asyncio.run(pipeline.scan_and_plan(
-                        task_id, target_dirs=[path], scoped_moves_only=True,
-                        max_entries=MAX_SCAN_ENTRIES, max_scan_seconds=MAX_SCAN_SECONDS,
-                        max_model_files=MAX_MODEL_FILES, use_ai=request.use_ai,
-                    ))
+                    lambda: asyncio.run(
+                        pipeline.scan_and_plan(
+                            task_id,
+                            target_dirs=[path],
+                            scoped_moves_only=True,
+                            max_entries=MAX_SCAN_ENTRIES,
+                            max_scan_seconds=MAX_SCAN_SECONDS,
+                            max_model_files=MAX_MODEL_FILES,
+                            use_ai=request.use_ai,
+                        )
+                    )
                 )
             finally:
                 ollama.close()
@@ -96,43 +110,50 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
 
             # Save plan to memory store
             identities = await asyncio.to_thread(snapshot_sources, plan)
-            save_task(task_id, {
-                "plan": plan, "summary": summary, "state": TaskState.REVIEW,
-                "authorized_root": path, "source_identities": identities,
-            })
-            
+            save_task(
+                task_id,
+                {
+                    "plan": plan,
+                    "summary": summary,
+                    "state": TaskState.REVIEW,
+                    "authorized_root": path,
+                    "source_identities": identities,
+                },
+            )
+
             # Broadcast plan ready
-            
+
             # Convert PlanSchema to dict for JSON serialization
-            plan_data = plan.model_dump(mode='json')
-            
-            await ws_manager.broadcast(WebSocketEvent(
-                event_type=EventType.PLAN_READY,
-                task_id=task_id,
-                message=(
-                    f"Partial scan: {summary.get('operations', 0)} operations proposed"
-                    if summary["truncated"]
-                    else f"Plan ready: {summary.get('operations', 0)} operations proposed"
-                ),
-                data={
-                    "plan": plan_data,
-                    "summary": summary
-                }
-            ))
-            
+            plan_data = plan.model_dump(mode="json")
+
+            await ws_manager.broadcast(
+                WebSocketEvent(
+                    event_type=EventType.PLAN_READY,
+                    task_id=task_id,
+                    message=(
+                        f"Partial scan: {summary.get('operations', 0)} operations proposed"
+                        if summary["truncated"]
+                        else f"Plan ready: {summary.get('operations', 0)} operations proposed"
+                    ),
+                    data={"plan": plan_data, "summary": summary},
+                )
+            )
+
         except Exception as e:
             save_task(task_id, {"state": TaskState.FAILED, "summary": str(e)})
             logger.error(f"Planning failed: {e}")
-            await ws_manager.broadcast(WebSocketEvent(
-                event_type=EventType.ERROR,
-                task_id=task_id,
-                message=f"Planning failed: {str(e)}",
-                data={"error": str(e)}
-            ))
+            await ws_manager.broadcast(
+                WebSocketEvent(
+                    event_type=EventType.ERROR,
+                    task_id=task_id,
+                    message=f"Planning failed: {e!s}",
+                    data={"error": str(e)},
+                )
+            )
 
     # Start background task
     schedule_scan_job(background_tasks, perform_planning, task_id, str(selected_root))
-    
+
     save_task(task_id, {"state": TaskState.PLANNING, "authorized_root": str(selected_root)})
 
     # Return initial response
@@ -143,6 +164,5 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
         folders_to_create=0,
         state=TaskState.PLANNING,
         safety_approved=False,
-        ambiguous_count=0
+        ambiguous_count=0,
     )
-

@@ -12,10 +12,7 @@ EVENT_PROTOCOL = "sentinel.events.v1"
 
 def authorized(token: str) -> bool:
     expected = settings.access_token
-    return bool(
-        expected
-        and compare_digest(token.encode(), expected.get_secret_value().encode())
-    )
+    return bool(expected and compare_digest(token.encode(), expected.get_secret_value().encode()))
 
 
 async def require_access(request: Request) -> None:

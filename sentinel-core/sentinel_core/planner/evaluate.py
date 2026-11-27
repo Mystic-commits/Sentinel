@@ -41,7 +41,9 @@ def score_plan(plan, folder: Path, expected: dict[str, str]) -> dict:
         if not source.is_relative_to(folder) or not destination.is_relative_to(folder):
             outside_scope += 1
             continue
-        proposed.append((source.relative_to(folder).as_posix(), destination.relative_to(folder).as_posix()))
+        proposed.append(
+            (source.relative_to(folder).as_posix(), destination.relative_to(folder).as_posix())
+        )
 
     targets = set(expected.items())
     observed = set(proposed)
@@ -70,20 +72,25 @@ async def evaluate(mode: str, model: str) -> list[dict]:
                 try:
                     pipeline = CleanPCPipeline(
                         PlannerAgent(ollama, model_name=model, user_prompt=instructions),
-                        SafetyValidator(), Executor(),
+                        SafetyValidator(),
+                        Executor(),
                     )
                     start = perf_counter()
                     result = await pipeline.scan_and_plan(
-                        f"eval-{name}-{requested}", target_dirs=[str(folder)],
-                        scoped_moves_only=True, use_ai=requested == "ai",
+                        f"eval-{name}-{requested}",
+                        target_dirs=[str(folder)],
+                        scoped_moves_only=True,
+                        use_ai=requested == "ai",
                     )
-                    results.append({
-                        "case": name,
-                        "requested": requested,
-                        "actual": result["summary"]["planning_source"],
-                        "elapsed_seconds": round(perf_counter() - start, 3),
-                        **score_plan(result["plan"], folder, expected),
-                    })
+                    results.append(
+                        {
+                            "case": name,
+                            "requested": requested,
+                            "actual": result["summary"]["planning_source"],
+                            "elapsed_seconds": round(perf_counter() - start, 3),
+                            **score_plan(result["plan"], folder, expected),
+                        }
+                    )
                 finally:
                     ollama.close()
     return results

@@ -2,12 +2,12 @@
 
 import asyncio
 from pathlib import Path
+from typing import Annotated
 from uuid import uuid4
 
 import typer
 from rich.table import Table
 from rich.text import Text
-from typing_extensions import Annotated
 
 from sentinel_core.api.limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS
 from sentinel_core.cleanpc.pipeline import CleanPCPipeline
@@ -27,16 +27,28 @@ def show_plan(plan: PlanSchema, selected: set[int] | None = None) -> None:
     table = Table("Action", "Change", "From", "To")
     for index, action in enumerate(plan.actions, 1):
         if selected is None or index in selected:
-            table.add_row(str(index), action.type.value, Text(action.source_path or ""),
-                          Text(action.destination_path or ""))
+            table.add_row(
+                str(index),
+                action.type.value,
+                Text(action.source_path or ""),
+                Text(action.destination_path or ""),
+            )
     console.print(table)
 
 
 def plan_command(
-    path: Annotated[Path, typer.Argument(help="Folder to organize", exists=True, dir_okay=True, file_okay=False)] = Path("."),
-    prompt: Annotated[str, typer.Option("--prompt", "-p", help="Instructions for the local AI")] = "",
-    save: Annotated[bool, typer.Option("--save/--no-save", help="Save the plan for later apply")] = True,
-    rules_only: Annotated[bool, typer.Option("--rules-only", help="Use local rules without Ollama")] = False,
+    path: Annotated[
+        Path, typer.Argument(help="Folder to organize", exists=True, dir_okay=True, file_okay=False)
+    ] = Path(),
+    prompt: Annotated[
+        str, typer.Option("--prompt", "-p", help="Instructions for the local AI")
+    ] = "",
+    save: Annotated[
+        bool, typer.Option("--save/--no-save", help="Save the plan for later apply")
+    ] = True,
+    rules_only: Annotated[
+        bool, typer.Option("--rules-only", help="Use local rules without Ollama")
+    ] = False,
 ):
     """Review a proposed plan for a single folder."""
     if rules_only and prompt:
@@ -49,11 +61,17 @@ def plan_command(
         planner = PlannerAgent(ollama, user_prompt=prompt)
         pipeline = CleanPCPipeline(planner, SafetyValidator(), Executor())
         with watch_status("[info]Preparing the file plan…[/]"):
-            result = asyncio.run(pipeline.scan_and_plan(
-                task_id, target_dirs=[str(path.resolve())], scoped_moves_only=True,
-                max_entries=MAX_SCAN_ENTRIES, max_scan_seconds=MAX_SCAN_SECONDS,
-                max_model_files=MAX_MODEL_FILES, use_ai=not rules_only,
-            ))
+            result = asyncio.run(
+                pipeline.scan_and_plan(
+                    task_id,
+                    target_dirs=[str(path.resolve())],
+                    scoped_moves_only=True,
+                    max_entries=MAX_SCAN_ENTRIES,
+                    max_scan_seconds=MAX_SCAN_SECONDS,
+                    max_model_files=MAX_MODEL_FILES,
+                    use_ai=not rules_only,
+                )
+            )
         plan = result["plan"]
         if result["summary"].get("truncated"):
             console.print("[warning]Partial scan. The plan covers only the files reached.[/]")

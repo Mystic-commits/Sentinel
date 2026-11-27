@@ -1,11 +1,10 @@
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from sentinel_core.api.config import settings
-from fastapi.testclient import TestClient
-
 from sentinel_core.api.main import app
 from sentinel_core.api.memory import task_store
 from sentinel_core.api.receipts import snapshot_sources
@@ -20,7 +19,9 @@ def configure_access(monkeypatch, tmp_path):
 
 
 def authorized_client():
-    return TestClient(app, base_url="http://localhost", headers={"Authorization": "Bearer " + "a" * 64})
+    return TestClient(
+        app, base_url="http://localhost", headers={"Authorization": "Bearer " + "a" * 64}
+    )
 
 
 def move(source: Path, destination: Path) -> PlanAction:
@@ -38,13 +39,19 @@ def test_execution_changes_only_approved_files_and_rejects_replay(tmp_path, monk
     for file in files:
         file.write_text(file.name)
     actions = [move(file, tmp_path / "sorted" / file.name) for file in files]
-    plan = PlanSchema(task_id="test-approved", scope_path=str(tmp_path), actions=actions, summary="")
-    monkeypatch.setitem(task_store, plan.task_id, {
-        "plan": plan,
-        "source_identities": snapshot_sources(plan),
-        "state": TaskState.REVIEW,
-        "authorized_root": str(tmp_path.resolve()),
-    })
+    plan = PlanSchema(
+        task_id="test-approved", scope_path=str(tmp_path), actions=actions, summary=""
+    )
+    monkeypatch.setitem(
+        task_store,
+        plan.task_id,
+        {
+            "plan": plan,
+            "source_identities": snapshot_sources(plan),
+            "state": TaskState.REVIEW,
+            "authorized_root": str(tmp_path.resolve()),
+        },
+    )
     payload = {"task_id": plan.task_id, "approved_action_indices": [0]}
     with authorized_client() as client:
         assert client.post("/api/execute", json=payload).status_code == 200
@@ -57,7 +64,10 @@ def test_execution_changes_only_approved_files_and_rejects_replay(tmp_path, monk
     monkeypatch.delitem(task_store, plan.task_id)
     with authorized_client() as restarted:
         assert restarted.get("/api/history").json()[0]["state"] == "completed"
-        assert restarted.post("/api/undo", json={"task_id": plan.task_id}).json()["undone_operations"] == 1
+        assert (
+            restarted.post("/api/undo", json={"task_id": plan.task_id}).json()["undone_operations"]
+            == 1
+        )
         assert restarted.post("/api/undo", json={"task_id": plan.task_id}).status_code == 409
     assert files[0].read_text() == files[0].name
 
@@ -74,12 +84,16 @@ def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
         actions=[move(source, destination)],
         summary="",
     )
-    monkeypatch.setitem(task_store, plan.task_id, {
-        "plan": plan,
-        "source_identities": snapshot_sources(plan),
-        "state": TaskState.REVIEW,
-        "authorized_root": str(root.resolve()),
-    })
+    monkeypatch.setitem(
+        task_store,
+        plan.task_id,
+        {
+            "plan": plan,
+            "source_identities": snapshot_sources(plan),
+            "state": TaskState.REVIEW,
+            "authorized_root": str(root.resolve()),
+        },
+    )
     with authorized_client() as client:
         response = client.post(
             "/api/execute", json={"task_id": plan.task_id, "approved_action_indices": [0]}
@@ -93,7 +107,7 @@ def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
 def test_plan_falls_back_to_moves_inside_selected_folder(tmp_path, monkeypatch):
     from sentinel_core.planner.planner_agent import PlannerAgent
 
-    def unavailable(*args, **kwargs):
+    def unavailable(*_args, **_kwargs):
         raise RuntimeError("Model unavailable in test")
 
     monkeypatch.setattr(PlannerAgent, "create_plan", unavailable)
@@ -122,15 +136,21 @@ def test_undo_preserves_changed_files(tmp_path, monkeypatch, change):
     destination = tmp_path / "destination.txt"
     source.write_text("original data")
     plan = PlanSchema(
-        task_id="test-undo-conflict", scope_path=str(tmp_path),
-        actions=[move(source, destination)], summary="",
+        task_id="test-undo-conflict",
+        scope_path=str(tmp_path),
+        actions=[move(source, destination)],
+        summary="",
     )
-    monkeypatch.setitem(task_store, plan.task_id, {
-        "plan": plan,
-        "source_identities": snapshot_sources(plan),
-        "state": TaskState.REVIEW,
-        "authorized_root": str(tmp_path.resolve()),
-    })
+    monkeypatch.setitem(
+        task_store,
+        plan.task_id,
+        {
+            "plan": plan,
+            "source_identities": snapshot_sources(plan),
+            "state": TaskState.REVIEW,
+            "authorized_root": str(tmp_path.resolve()),
+        },
+    )
     with authorized_client() as client:
         response = client.post(
             "/api/execute", json={"task_id": plan.task_id, "approved_action_indices": [0]}
@@ -148,20 +168,30 @@ def test_apply_rejects_changed_source(tmp_path, monkeypatch):
     destination = tmp_path / "sorted.txt"
     source.write_text("before review")
     plan = PlanSchema(
-        task_id="stale", scope_path=str(tmp_path),
-        actions=[move(source, destination)], summary="",
+        task_id="stale",
+        scope_path=str(tmp_path),
+        actions=[move(source, destination)],
+        summary="",
     )
-    monkeypatch.setitem(task_store, plan.task_id, {
-        "plan": plan,
-        "source_identities": snapshot_sources(plan),
-        "authorized_root": str(tmp_path.resolve()),
-        "state": TaskState.REVIEW,
-    })
+    monkeypatch.setitem(
+        task_store,
+        plan.task_id,
+        {
+            "plan": plan,
+            "source_identities": snapshot_sources(plan),
+            "authorized_root": str(tmp_path.resolve()),
+            "state": TaskState.REVIEW,
+        },
+    )
     source.write_text("changed after review")
     with authorized_client() as client:
-        response = client.post("/api/execute", json={
-            "task_id": plan.task_id, "approved_action_indices": [0],
-        })
+        response = client.post(
+            "/api/execute",
+            json={
+                "task_id": plan.task_id,
+                "approved_action_indices": [0],
+            },
+        )
         assert response.status_code == 409
         assert client.get("/api/history").json() == []
     assert source.read_text() == "changed after review"
@@ -179,13 +209,15 @@ def test_planning_mode_reports_actual_source_and_preserves_scope(tmp_path, monke
     outside = tmp_path / "outside.txt"
     model_requests = []
 
-    def fake_plan(self, task_id, scan_result, rule_matches, preferences):
+    def fake_plan(self, task_id, scan_result, **_options):
         model_requests.append(self.user_prompt)
         assert scan_result.files[0].preview_text is None
         destination = outside if mode == "unsafe_ai" else folder / "notes" / source.name
         return PlanSchema(
-            task_id=task_id, scope_path=str(tmp_path),
-            actions=[move(source, destination)], summary="Fixture model result",
+            task_id=task_id,
+            scope_path=str(tmp_path),
+            actions=[move(source, destination)],
+            summary="Fixture model result",
         )
 
     monkeypatch.setattr(PlannerAgent, "create_plan", fake_plan)
@@ -213,7 +245,6 @@ def test_planning_mode_reports_actual_source_and_preserves_scope(tmp_path, monke
             task_store.pop(task_id, None)
 
 
-
 @pytest.mark.parametrize("route", ["/api/scan", "/api/plan"])
 @pytest.mark.parametrize("folder", [".", "", "../files", "/tmp/bad\x00folder"])
 def test_folder_jobs_require_explicit_absolute_path(route, folder):
@@ -225,7 +256,7 @@ def test_folder_jobs_require_explicit_absolute_path(route, folder):
 def test_failed_planning_remains_queryable(tmp_path, monkeypatch):
     from sentinel_core.cleanpc.pipeline import CleanPCPipeline
 
-    async def fail(*args, **kwargs):
+    async def fail(*_args, **_kwargs):
         raise ValueError("Fixture planning error")
 
     monkeypatch.setattr(CleanPCPipeline, "scan_and_plan", fail)

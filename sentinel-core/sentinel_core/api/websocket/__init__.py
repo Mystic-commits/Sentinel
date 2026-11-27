@@ -1,5 +1,5 @@
 """WebSocket module."""
 
-from .manager import ws_manager, WebSocketManager
+from .manager import WebSocketManager, ws_manager
 
-__all__ = ["ws_manager", "WebSocketManager"]
+__all__ = ["WebSocketManager", "ws_manager"]

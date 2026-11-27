@@ -1,5 +1,5 @@
 """API models module."""
 
-from . import requests, responses, events
+from . import events, requests, responses
 
-__all__ = ["requests", "responses", "events"]
+__all__ = ["events", "requests", "responses"]

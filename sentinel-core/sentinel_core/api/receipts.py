@@ -14,8 +14,11 @@ from sentinel_core.safety import SafetyValidator
 from .config import settings
 
 
-class WriterBusy(ValueError):
+class WriterBusyError(ValueError):
     """Another Sentinel process owns the local filesystem writer."""
+
+
+WriterBusy = WriterBusyError
 
 
 def database_path() -> Path:
@@ -34,7 +37,9 @@ def writer():
         except sqlite3.OperationalError as error:
             if error.sqlite_errorcode not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
                 raise
-            raise WriterBusy("Another file operation is running. Try again after it finishes.") from error
+            raise WriterBusyError(
+                "Another file operation is running. Try again after it finishes."
+            ) from error
         yield
 
 
@@ -121,7 +126,11 @@ def _reconcile_interrupted() -> None:
 
 
 def _check_move(plan: PlanSchema, action: PlanAction, expected: tuple[int, ...]) -> None:
-    if action.type not in (ActionType.MOVE, ActionType.RENAME) or not action.source_path or not action.destination_path:
+    if (
+        action.type not in (ActionType.MOVE, ActionType.RENAME)
+        or not action.source_path
+        or not action.destination_path
+    ):
         raise ValueError("Only file moves and renames are supported")
     if identity(action.source_path) != expected:
         raise ValueError("A source file changed before the move")
@@ -170,8 +179,12 @@ def _recorded_moves(plan, operations, *, undo: bool = False) -> ExecutionResult:
             break
 
     return ExecutionResult(
-        task_id=plan.task_id, total_actions=len(operations), successful_actions=succeeded,
-        failed_actions=int(error_message is not None), execution_logs=[], error_message=error_message,
+        task_id=plan.task_id,
+        total_actions=len(operations),
+        successful_actions=succeeded,
+        failed_actions=int(error_message is not None),
+        execution_logs=[],
+        error_message=error_message,
     )
 
 
@@ -180,7 +193,9 @@ def run_recorded(plan: PlanSchema, expected: dict[str, tuple[int, ...]]) -> Exec
         with writer():
             _reconcile_interrupted()
             verify_sources(plan, expected)
-            operations = [(i, action, expected[action.source_path]) for i, action in enumerate(plan.actions)]
+            operations = [
+                (i, action, expected[action.source_path]) for i, action in enumerate(plan.actions)
+            ]
             for _, action, fingerprint in operations:
                 _check_move(plan, action, fingerprint)
             _set_state(plan.task_id, "executing")
@@ -214,7 +229,7 @@ def history():
         with writer():
             _reconcile_interrupted()
             return _history()
-    except WriterBusy:
+    except WriterBusyError:
         return _history()
 
 
@@ -227,7 +242,8 @@ def receipt_details(task_id: str):
             raise KeyError(task_id)
         rows = connection.execute(
             "SELECT action_index, apply_state, undo_state FROM receipt_operations "
-            "WHERE task_id = ? ORDER BY action_index", (task_id,),
+            "WHERE task_id = ? ORDER BY action_index",
+            (task_id,),
         ).fetchall()
     plan = PlanSchema.model_validate_json(receipt["plan"])
     return [
@@ -285,13 +301,18 @@ def undo_recorded(task_id: str) -> ExecutionResult:
         operations = []
         for index, stored in completed:
             action = plan.actions[index]
-            reversal = action.model_copy(update={
-                "source_path": action.destination_path, "destination_path": action.source_path,
-            })
+            reversal = action.model_copy(
+                update={
+                    "source_path": action.destination_path,
+                    "destination_path": action.source_path,
+                }
+            )
             fingerprint = tuple(json.loads(stored))
             _check_move(plan, reversal, fingerprint)
             operations.append((index, reversal, fingerprint))
-        connection.execute("UPDATE api_receipts SET state = 'undoing' WHERE task_id = ?", (task_id,))
+        connection.execute(
+            "UPDATE api_receipts SET state = 'undoing' WHERE task_id = ?", (task_id,)
+        )
         connection.commit()
 
         result = _recorded_moves(plan, operations, undo=True)

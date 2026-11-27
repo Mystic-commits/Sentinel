@@ -1,5 +1,5 @@
 """CLI commands module."""
 
-from . import scan, plan, apply, clean, undo, ask
+from . import apply, ask, clean, plan, scan, undo
 
-__all__ = ["scan", "plan", "apply", "clean", "undo", "ask"]
+__all__ = ["apply", "ask", "clean", "plan", "scan", "undo"]

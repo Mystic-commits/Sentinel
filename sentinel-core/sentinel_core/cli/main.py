@@ -4,9 +4,11 @@ Sentinel CLI - Main Application
 Entry point for the Sentinel command-line interface.
 """
 
-import typer
-from typing_extensions import Annotated
+from typing import Annotated
 
+import typer
+
+from .commands import apply, ask, clean, plan, scan, undo
 from .console import console, show_watchkeeper
 
 # Create Typer app
@@ -29,7 +31,7 @@ def version_callback(value: bool):
 
 @app.callback()
 def main(
-    version: Annotated[
+    _version: Annotated[
         bool,
         typer.Option(
             "--version",
@@ -42,14 +44,13 @@ def main(
 ):
     """
     Sentinel - AI-powered file organization assistant.
-    
+
     Review proposed changes to files with local AI assistance.
     """
     show_watchkeeper()
 
 
 # Register commands
-from .commands import scan, plan, apply, clean, undo, ask
 
 app.command(name="scan")(scan.scan_command)
 app.command(name="plan")(plan.plan_command)

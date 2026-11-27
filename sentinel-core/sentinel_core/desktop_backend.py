@@ -22,7 +22,9 @@ def main() -> None:
 
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
-        server = DesktopServer(uvicorn.Config(app, log_level="warning", access_log=False, ws_max_size=64 * 1024))
+        server = DesktopServer(
+            uvicorn.Config(app, log_level="warning", access_log=False, ws_max_size=64 * 1024)
+        )
 
         def stop_on_parent_exit() -> None:
             sys.stdin.buffer.read()

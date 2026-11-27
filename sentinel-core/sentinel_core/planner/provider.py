@@ -19,7 +19,7 @@ Example:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any
 
 
 class LLMProvider(ABC):
@@ -53,7 +53,7 @@ class LLMProvider(ABC):
         ...
 
     @abstractmethod
-    def generate_json(self, prompt: str, model: str, **kwargs: Any) -> Dict[str, Any]:
+    def generate_json(self, prompt: str, model: str, **kwargs: Any) -> dict[str, Any]:
         """
         Generate a structured JSON response from the LLM.
 
@@ -92,14 +92,17 @@ class LLMProviderError(Exception):
     subclass of it) so that the PlannerAgent can handle errors uniformly,
     without knowing which backend is in use.
     """
+
     pass
 
 
 class LLMConnectionError(LLMProviderError):
     """Raised when the provider service cannot be reached."""
+
     pass
 
 
 class LLMGenerationError(LLMProviderError):
     """Raised when the LLM fails to produce a valid response."""
+
     pass

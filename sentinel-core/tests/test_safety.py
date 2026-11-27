@@ -1,4 +1,3 @@
-
 import pytest
 
 from sentinel_core.models.enums import ActionType
@@ -11,9 +10,11 @@ def test_accepts_existing_scoped_source(tmp_path, kind):
     source = tmp_path / "source.txt"
     source.touch()
     action = PlanAction(
-        type=kind, source_path=str(source),
+        type=kind,
+        source_path=str(source),
         destination_path=None if kind == ActionType.DELETE else str(tmp_path / "dest.txt"),
-        confidence=1, reason="Test",
+        confidence=1,
+        reason="Test",
     )
     plan = PlanSchema(task_id="safe", scope_path=str(tmp_path), actions=[action], summary="")
     assert SafetyValidator().validate_plan(plan).is_safe
@@ -40,13 +41,15 @@ def test_rejects_unsafe_plan(tmp_path, monkeypatch, violation):
     plan = PlanSchema(
         task_id="unsafe",
         scope_path=str(root),
-        actions=[PlanAction(
-            type=ActionType.MOVE,
-            source_path=str(source),
-            destination_path=str(destination),
-            reason="Test",
-            confidence=1,
-        )],
+        actions=[
+            PlanAction(
+                type=ActionType.MOVE,
+                source_path=str(source),
+                destination_path=str(destination),
+                reason="Test",
+                confidence=1,
+            )
+        ],
         folders_to_create=folders,
         summary="",
     )

@@ -2,9 +2,10 @@
 
 import ctypes
 import errno
-from functools import cache
 import os
 import sys
+from functools import cache
+from pathlib import Path
 
 
 @cache
@@ -16,7 +17,11 @@ def _native_rename():
     elif sys.platform.startswith("linux"):
         rename = libc.renameat2
         rename.argtypes = (
-            ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
         )
     else:
         raise OSError(errno.ENOTSUP, "Exclusive rename is unavailable on this platform")
@@ -26,7 +31,7 @@ def _native_rename():
 
 def rename_without_replacing(source: str, destination: str) -> None:
     if os.name == "nt":
-        os.rename(source, destination)
+        Path(source).rename(destination)
         return
 
     try:

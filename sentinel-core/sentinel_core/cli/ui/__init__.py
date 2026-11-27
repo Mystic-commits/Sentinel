@@ -1,5 +1,5 @@
 """CLI UI components module."""
 
-from . import prompts, display
+from . import display, prompts
 
-__all__ = ["prompts", "display"]
+__all__ = ["display", "prompts"]

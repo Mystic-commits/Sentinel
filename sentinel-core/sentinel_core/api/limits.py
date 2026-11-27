@@ -1,9 +1,9 @@
 """Process-local capacity limits for the single-user backend."""
 
 from collections import deque
+from collections.abc import Awaitable, Callable
 from threading import Lock
 from time import monotonic
-from typing import Awaitable, Callable
 
 from fastapi import BackgroundTasks, HTTPException
 
@@ -24,7 +24,9 @@ def rate_limit_mutation() -> None:
             _recent_mutations.popleft()
         if len(_recent_mutations) >= MUTATIONS_PER_MINUTE:
             remaining = 60 - (now - _recent_mutations[0])
-            raise HTTPException(429, "Too many requests", headers={"Retry-After": str(int(remaining) + 1)})
+            raise HTTPException(
+                429, "Too many requests", headers={"Retry-After": str(int(remaining) + 1)}
+            )
         _recent_mutations.append(now)
 
 
