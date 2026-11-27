@@ -31,15 +31,19 @@ export default function ExecutionHistory() {
         setBusy(true);
         setMessage('');
         setDetails(null);
-        try {
-            if (taskId) {
-                const result = await api.undoTask(taskId);
-                setMessage(result.message);
+        let outcome = '';
+        if (taskId) {
+            try {
+                outcome = (await api.undoTask(taskId)).message;
+            } catch (error) {
+                outcome = error instanceof Error ? error.message : 'Restore could not finish.';
             }
-            const history = await api.history();
-            setReceipts(history);
-        } catch (error) {
-            setMessage(error instanceof Error ? error.message : 'Could not load execution history.');
+        }
+        try {
+            setReceipts(await api.history());
+            setMessage(outcome);
+        } catch {
+            setMessage([outcome, 'Could not refresh execution history.'].filter(Boolean).join(' '));
         } finally {
             setBusy(false);
         }
