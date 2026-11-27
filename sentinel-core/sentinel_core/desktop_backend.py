@@ -2,6 +2,7 @@
 
 import socket
 import sys
+from multiprocessing import freeze_support
 from threading import Thread
 
 import uvicorn
@@ -35,4 +36,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    freeze_support()
     main()

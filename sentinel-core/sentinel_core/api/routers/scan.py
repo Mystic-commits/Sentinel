@@ -7,12 +7,13 @@ Endpoint for scanning directories.
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks
 
 from sentinel_core.models.enums import TaskState
-from sentinel_core.scanner.scanner import Scanner
 
-from ..limits import MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS, schedule_scan_job
+from ..file_jobs import run_file_job, scan_folder
+from ..limits import schedule_scan_job
+from ..memory import save_task
 from ..models.requests import ScanRequest
 from ..models.responses import ScanResponse
 from ..websocket.manager import ws_manager
@@ -32,8 +33,6 @@ async def perform_scan(scan_id: str, path: str, max_depth: int):
         max_depth: Maximum directory depth
     """
 
-    import asyncio
-
     from ..models.events import EventType, WebSocketEvent
 
     try:
@@ -48,41 +47,24 @@ async def perform_scan(scan_id: str, path: str, max_depth: int):
             )
         )
 
-        # Perform scan in thread pool to prevent blocking
-
-        result = await asyncio.to_thread(
-            Scanner(
-                path,
-                max_depth=max_depth,
-                include_previews=False,
-                max_entries=MAX_SCAN_ENTRIES,
-                max_seconds=MAX_SCAN_SECONDS,
-            ).scan
-        )
-
-        total_files = len(result.files)
-        total_size = sum(f.size_bytes for f in result.files)
-
-        # Broadcast complete
-
+        result = await run_file_job(scan_folder, path, max_depth)
+        total_files = result["total_files"]
+        status = "Partial scan" if result["truncated"] else "Scan complete"
+        message = f"{status}: {total_files} files found"
+        save_task(scan_id, {"state": TaskState.COMPLETED, "summary": message})
         await ws_manager.broadcast(
             WebSocketEvent(
                 event_type=EventType.SCAN_COMPLETE,
                 task_id=scan_id,
-                message=f"{'Partial scan' if result.truncated else 'Scan complete'}: {total_files} files found",
-                data={
-                    "total_files": total_files,
-                    "total_size_bytes": total_size,
-                    "errors": len(result.errors),
-                    "truncated": result.truncated,
-                },
+                message=message,
+                data=result,
             )
         )
 
         logger.info(f"Scan complete: {scan_id} - {total_files} files")
 
     except Exception as e:
-
+        save_task(scan_id, {"state": TaskState.FAILED, "summary": str(e)})
         logger.error(f"Scan failed: {scan_id} - {e}")
         await ws_manager.broadcast(
             WebSocketEvent(
@@ -118,14 +100,8 @@ async def scan(request: ScanRequest, background_tasks: BackgroundTasks):
     """
     scan_id = f"scan-{uuid.uuid4()}"
 
-    # Validate path exists
-    from pathlib import Path
-
-    if not Path(request.path).is_dir():
-        raise HTTPException(status_code=404, detail=f"Path not found: {request.path}")
-
-    # Start scan in background
     schedule_scan_job(background_tasks, perform_scan, scan_id, request.path, request.max_depth)
+    save_task(scan_id, {"state": TaskState.SCANNING})
 
     logger.info(f"Scan initiated: {scan_id}")
 

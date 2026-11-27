@@ -51,3 +51,29 @@ def test_scan_reports_partial_inventory(tmp_path, budget):
     assert result.truncated
     assert len(result.files) == (2 if "max_entries" in budget else 0)
     assert result.errors
+
+
+def test_timed_out_worker_releases_job_slot(tmp_path):
+    from time import sleep
+
+    from sentinel_core.api.file_jobs import run_file_job, scan_folder
+
+    async def scenario():
+        stalled = BackgroundTasks()
+        limits.schedule_scan_job(stalled, lambda: run_file_job(sleep, 30, timeout=0.5))
+        with pytest.raises(TimeoutError, match="folder job timed out"):
+            await stalled()
+
+        (tmp_path / "notes.txt").touch()
+        scanned = BackgroundTasks()
+        result = {}
+
+        async def scan():
+            result.update(await run_file_job(scan_folder, str(tmp_path), 3))
+
+        limits.schedule_scan_job(scanned, scan)
+        await scanned()
+        assert result["total_files"] == 1
+        assert result["truncated"] is False
+
+    asyncio.run(scenario())

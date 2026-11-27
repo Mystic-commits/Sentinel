@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ from sentinel_core.api.config import settings
 from sentinel_core.api.main import app
 from sentinel_core.api.memory import task_store
 from sentinel_core.api.receipts import snapshot_sources
+from sentinel_core.api.routers import plan
 from sentinel_core.models.enums import ActionType, TaskState
 from sentinel_core.models.planner import PlanAction, PlanSchema
 
@@ -16,6 +18,17 @@ from sentinel_core.models.planner import PlanAction, PlanSchema
 def configure_access(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "database_url", str(tmp_path / "receipts.db"))
     monkeypatch.setattr(settings, "access_token", SecretStr("a" * 64))
+
+
+@pytest.fixture
+def inline_planner(monkeypatch):
+    # Provider and pipeline doubles live in this process. The worker tests separately
+    # exercise the real spawn and IPC boundary.
+    async def run_here(job, *args, timeout):
+        assert timeout > 0
+        return await asyncio.to_thread(job, *args)
+
+    monkeypatch.setattr(plan, "run_file_job", run_here)
 
 
 def authorized_client():
@@ -104,6 +117,7 @@ def test_execution_rejects_out_of_scope_destination(tmp_path, monkeypatch):
     assert not destination.exists()
 
 
+@pytest.mark.usefixtures("inline_planner")
 def test_plan_falls_back_to_moves_inside_selected_folder(tmp_path, monkeypatch):
     from sentinel_core.planner.planner_agent import PlannerAgent
 
@@ -199,6 +213,7 @@ def test_apply_rejects_changed_source(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("mode", ["rules", "ai", "unsafe_ai"])
+@pytest.mark.usefixtures("inline_planner")
 def test_planning_mode_reports_actual_source_and_preserves_scope(tmp_path, monkeypatch, mode):
     from sentinel_core.planner.planner_agent import PlannerAgent
 
@@ -253,6 +268,7 @@ def test_folder_jobs_require_explicit_absolute_path(route, folder):
     assert response.status_code == 422
 
 
+@pytest.mark.usefixtures("inline_planner")
 def test_failed_planning_remains_queryable(tmp_path, monkeypatch):
     from sentinel_core.cleanpc.pipeline import CleanPCPipeline
 
@@ -274,6 +290,7 @@ def test_failed_planning_remains_queryable(tmp_path, monkeypatch):
             task_store.pop(task_id, None)
 
 
+@pytest.mark.usefixtures("inline_planner")
 def test_folder_plan_classifies_without_reading_file_contents(tmp_path, monkeypatch):
     from sentinel_core.cleanpc.classifiers import FileClassifier
 
@@ -293,6 +310,7 @@ def test_folder_plan_classifies_without_reading_file_contents(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize("proposal", ["Invoices", "../outside", "C:/outside"])
+@pytest.mark.usefixtures("inline_planner")
 def test_scoped_model_proposal_uses_inventory_ids(tmp_path, monkeypatch, proposal):
     from sentinel_core.planner.ollama_client import OllamaClient
 
@@ -313,5 +331,21 @@ def test_scoped_model_proposal_uses_inventory_ids(tmp_path, monkeypatch, proposa
             assert detail["planning_source"] == ("ai" if ai_plan else "rules")
             destination = "Invoices/invoice.pdf" if ai_plan else "document/invoice.pdf"
             assert Path(detail["plan"]["actions"][0]["destination_path"]) == tmp_path / destination
+        finally:
+            task_store.pop(task_id, None)
+
+
+@pytest.mark.parametrize(
+    ("route", "id_field"), [("/api/scan", "scan_id"), ("/api/plan", "task_id")]
+)
+def test_unavailable_folder_is_reported_in_background_job(tmp_path, route, id_field):
+    with authorized_client() as client:
+        response = client.post(route, json={"path": str(tmp_path / "missing")})
+        assert response.status_code == 200
+        task_id = response.json()[id_field]
+        try:
+            detail = client.get(f"/api/tasks/{task_id}").json()
+            assert detail["state"] == "failed"
+            assert detail["summary"] == "The selected folder is unavailable"
         finally:
             task_store.pop(task_id, None)

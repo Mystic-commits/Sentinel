@@ -10,12 +10,13 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from sentinel_core.models.enums import TaskState
+from sentinel_core.models.planner import PlanSchema
 
-from ..limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS, schedule_scan_job
+from ..file_jobs import AI_WORKER_TIMEOUT, SCAN_WORKER_TIMEOUT, plan_folder, run_file_job
+from ..limits import schedule_scan_job
 from ..memory import save_task
 from ..models.requests import PlanRequest
 from ..models.responses import PlanResponse
-from ..receipts import snapshot_sources
 from ..websocket.manager import ws_manager
 
 logger = logging.getLogger(__name__)
@@ -44,25 +45,10 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             "user_prompt": "Organize by file type"
         }
     """
-    import asyncio
-    from pathlib import Path
-
-    from sentinel_core.cleanpc.pipeline import CleanPCPipeline
-    from sentinel_core.executor import Executor
-    from sentinel_core.planner.ollama_client import OllamaClient
-    from sentinel_core.planner.planner_agent import PlannerAgent
-    from sentinel_core.safety.safety import SafetyValidator
-
     from ..models.events import EventType, WebSocketEvent
 
     if not request.use_ai and request.user_prompt:
         raise HTTPException(status_code=422, detail="Custom instructions require local AI")
-    try:
-        selected_root = Path(request.path).resolve(strict=True)
-    except (OSError, RuntimeError) as error:
-        raise HTTPException(status_code=422, detail="The selected folder is unavailable") from error
-    if not selected_root.is_dir():
-        raise HTTPException(status_code=422, detail="The selected folder is unavailable")
 
     task_id = f"task-{uuid.uuid4()}"
 
@@ -76,55 +62,29 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
                     data={},
                 )
             )
-            # Initialize pipeline components
-            # Note: In a real app, these should be dependency injected or singletons
-            ollama = OllamaClient()
-            planner = PlannerAgent(
-                ollama, model_name="llama2", user_prompt=request.user_prompt or ""
+            result = await run_file_job(
+                plan_folder,
+                task_id,
+                path,
+                request.use_ai,
+                request.user_prompt or "",
+                timeout=AI_WORKER_TIMEOUT if request.use_ai else SCAN_WORKER_TIMEOUT,
             )
-            safety = SafetyValidator()
-            executor = Executor()
-
-            pipeline = CleanPCPipeline(planner, safety, executor)
-
-            try:
-                result = await asyncio.to_thread(
-                    lambda: asyncio.run(
-                        pipeline.scan_and_plan(
-                            task_id,
-                            target_dirs=[path],
-                            scoped_moves_only=True,
-                            max_entries=MAX_SCAN_ENTRIES,
-                            max_scan_seconds=MAX_SCAN_SECONDS,
-                            max_model_files=MAX_MODEL_FILES,
-                            use_ai=request.use_ai,
-                        )
-                    )
-                )
-            finally:
-                ollama.close()
-
-            # Extract results
-            plan = result["plan"]
             summary = result["summary"]
-
-            # Save plan to memory store
-            identities = await asyncio.to_thread(snapshot_sources, plan)
+            plan_data = result["plan"]
             save_task(
                 task_id,
                 {
-                    "plan": plan,
+                    "plan": PlanSchema.model_validate(plan_data),
                     "summary": summary,
                     "state": TaskState.REVIEW,
-                    "authorized_root": path,
-                    "source_identities": identities,
+                    "authorized_root": result["authorized_root"],
+                    "source_identities": {
+                        source: tuple(values)
+                        for source, values in result["source_identities"].items()
+                    },
                 },
             )
-
-            # Broadcast plan ready
-
-            # Convert PlanSchema to dict for JSON serialization
-            plan_data = plan.model_dump(mode="json")
 
             await ws_manager.broadcast(
                 WebSocketEvent(
@@ -152,9 +112,9 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             )
 
     # Start background task
-    schedule_scan_job(background_tasks, perform_planning, task_id, str(selected_root))
+    schedule_scan_job(background_tasks, perform_planning, task_id, request.path)
 
-    save_task(task_id, {"state": TaskState.PLANNING, "authorized_root": str(selected_root)})
+    save_task(task_id, {"state": TaskState.PLANNING})
 
     # Return initial response
     return PlanResponse(
