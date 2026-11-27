@@ -211,3 +211,12 @@ def test_planning_mode_reports_actual_source_and_preserves_scope(tmp_path, monke
             assert source.is_file() and not outside.exists()
         finally:
             task_store.pop(task_id, None)
+
+
+
+@pytest.mark.parametrize("route", ["/api/scan", "/api/plan"])
+@pytest.mark.parametrize("folder", [".", "", "../files", "/tmp/bad\x00folder"])
+def test_folder_jobs_require_explicit_absolute_path(route, folder):
+    with authorized_client() as client:
+        response = client.post(route, json={"path": folder})
+    assert response.status_code == 422

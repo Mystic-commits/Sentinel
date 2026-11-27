@@ -24,7 +24,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     """
     Create an AI-powered organization plan.
     
-    Either provide a scan_id from a previous scan, or a path to scan first.
+    Provide the absolute path of the folder to scan.
     
     Args:
         request: Plan request
@@ -52,9 +52,10 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
 
     if not request.use_ai and request.user_prompt:
         raise HTTPException(status_code=422, detail="Custom instructions require local AI")
-    if not request.path:
-        raise HTTPException(status_code=422, detail="Select a folder to plan")
-    selected_root = Path(request.path).expanduser().resolve()
+    try:
+        selected_root = Path(request.path).resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise HTTPException(status_code=422, detail="The selected folder is unavailable") from error
     if not selected_root.is_dir():
         raise HTTPException(status_code=422, detail="The selected folder is unavailable")
 

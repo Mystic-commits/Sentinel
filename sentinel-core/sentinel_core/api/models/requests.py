@@ -4,14 +4,25 @@ Request Schemas
 Pydantic models for API request validation.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from pathlib import Path
+from typing import Annotated, Optional
+
+from pydantic import AfterValidator, BaseModel, Field
+
+
+def validate_folder_path(value: str) -> str:
+    if "\x00" in value or not Path(value).is_absolute():
+        raise ValueError("Enter an absolute folder path")
+    return value
+
+
+FolderPath = Annotated[str, Field(max_length=32767), AfterValidator(validate_folder_path)]
 
 
 class ScanRequest(BaseModel):
     """Request to scan a directory."""
     
-    path: str = Field(..., description="Absolute path to directory to scan")
+    path: FolderPath = Field(..., description="Absolute path to directory to scan")
     max_depth: int = Field(default=10, ge=1, le=20, description="Maximum directory depth")
     
     class Config:
@@ -26,8 +37,7 @@ class ScanRequest(BaseModel):
 class PlanRequest(BaseModel):
     """Request to create an organization plan."""
     
-    scan_id: Optional[str] = Field(None, description="ID from previous scan")
-    path: Optional[str] = Field(None, description="Path to scan and plan")
+    path: FolderPath = Field(description="Absolute path to scan and plan")
     user_prompt: Optional[str] = Field(None, max_length=1000, description="Custom instructions for local AI")
     use_ai: bool = True
     
