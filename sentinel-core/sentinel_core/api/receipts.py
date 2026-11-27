@@ -4,7 +4,7 @@ import json
 import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
-from stat import S_ISREG
+from stat import FILE_ATTRIBUTE_REPARSE_POINT, S_ISDIR, S_ISREG
 
 from sentinel_core.executor.executor import execute_plan
 from sentinel_core.models.enums import ActionType
@@ -125,6 +125,28 @@ def _reconcile_interrupted() -> None:
         """)
 
 
+def _check_directory_chain(root: Path, file: Path) -> None:
+    """Reject links and Windows reparse points within the approved folder."""
+    if not root.is_absolute() or not file.is_absolute() or not file.is_relative_to(root):
+        raise ValueError("A move failed folder safety validation")
+    relative = file.relative_to(root)
+    if not relative.parts or ".." in relative.parts:
+        raise ValueError("A move failed folder safety validation")
+    directory = root
+    for part in ("", *relative.parts[:-1]):
+        directory /= part
+        try:
+            entry = directory.lstat()
+        except FileNotFoundError:
+            if directory == root:
+                raise
+            break
+        if not S_ISDIR(entry.st_mode) or (
+            getattr(entry, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
+        ):
+            raise ValueError("A folder in the move path is a link or reparse point")
+
+
 def _check_move(plan: PlanSchema, action: PlanAction, expected: tuple[int, ...]) -> None:
     if (
         action.type not in (ActionType.MOVE, ActionType.RENAME)
@@ -132,6 +154,9 @@ def _check_move(plan: PlanSchema, action: PlanAction, expected: tuple[int, ...])
         or not action.destination_path
     ):
         raise ValueError("Only file moves and renames are supported")
+    root = Path(plan.scope_path)
+    _check_directory_chain(root, Path(action.source_path))
+    _check_directory_chain(root, Path(action.destination_path))
     if identity(action.source_path) != expected:
         raise ValueError("A source file changed before the move")
     destination = Path(action.destination_path)
@@ -162,6 +187,7 @@ def _recorded_moves(plan, operations, *, undo: bool = False) -> ExecutionResult:
             result = execute_plan(_single_move(plan, action))
             if result.failed_actions or result.error_message:
                 raise ValueError(result.error_message or "File operation did not complete")
+            _check_directory_chain(Path(plan.scope_path), Path(action.destination_path))
             moved = identity(action.destination_path)
             # Rename can change ctime. The device, inode, size and mtime should match.
             if moved[:-1] != expected[:-1]:
@@ -197,13 +223,13 @@ def run_recorded(plan: PlanSchema, expected: dict[str, tuple[int, ...]]) -> Exec
     try:
         with writer():
             _reconcile_interrupted()
+            _set_state(plan.task_id, "executing")
             verify_sources(plan, expected)
             operations = [
                 (i, action, expected[action.source_path]) for i, action in enumerate(plan.actions)
             ]
             for _, action, fingerprint in operations:
                 _check_move(plan, action, fingerprint)
-            _set_state(plan.task_id, "executing")
             result = _recorded_moves(plan, operations)
             if result.error_message is None:
                 _set_state(plan.task_id, "completed")

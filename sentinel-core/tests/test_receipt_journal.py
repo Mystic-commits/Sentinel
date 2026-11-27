@@ -147,3 +147,55 @@ def test_receipt_never_confirms_a_replaced_destination(batch, monkeypatch):
     with pytest.raises(ValueError, match="receipt can be undone"):
         receipts.undo_recorded(batch.task_id)
     assert Path(action.destination_path).read_text() == "unrelated replacement"
+
+
+def test_apply_rejects_a_destination_parent_link_inside_scope(batch):
+    root = Path(batch.scope_path)
+    target = root / "other"
+    target.mkdir()
+    link = root / "organized"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (NotImplementedError, OSError) as error:
+        pytest.skip(f"Directory links are unavailable: {error}")
+
+    receipts.record_start(batch)
+    with pytest.raises(ValueError, match="link or reparse point"):
+        receipts.run_recorded(batch, receipts.snapshot_sources(batch))
+
+    assert not list(target.iterdir())
+    assert all(Path(action.source_path).exists() for action in batch.actions)
+
+
+def _stall_during_apply(database_url, task_id):
+    from time import sleep
+
+    settings.database_url = database_url
+    with receipts.writer():
+        with receipts.database() as connection:
+            connection.execute(
+                "UPDATE api_receipts SET state = 'executing' WHERE task_id = ?", (task_id,)
+            )
+            connection.execute(
+                "UPDATE receipt_operations SET apply_state = 'started' "
+                "WHERE task_id = ? AND action_index = 0",
+                (task_id,),
+            )
+        sleep(30)
+
+
+def test_terminated_apply_keeps_receipt_and_releases_writer(batch):
+    import asyncio
+
+    from sentinel_core.api.file_jobs import run_file_job
+
+    receipts.record_start(batch)
+    with pytest.raises(TimeoutError):
+        asyncio.run(
+            run_file_job(_stall_during_apply, settings.database_url, batch.task_id, timeout=3)
+        )
+    assert receipts.history()[0]["state"] == "interrupted"
+    first, second = receipts.receipt_details(batch.task_id)
+    assert (first["apply_state"], second["apply_state"]) == ("started", "pending")
+    with receipts.writer():
+        assert all(Path(action.source_path).exists() for action in batch.actions)

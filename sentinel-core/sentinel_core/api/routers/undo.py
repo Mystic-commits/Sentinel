@@ -3,10 +3,14 @@
 from fastapi import APIRouter, HTTPException
 
 from sentinel_core.models.enums import TaskState
+from sentinel_core.models.executor import ExecutionResult
 
+from ..config import settings
+from ..file_jobs import run_file_job
 from ..models.requests import UndoRequest
 from ..models.responses import UndoResponse
-from ..receipts import WriterBusy, history, receipt_details, receipt_state, undo_recorded
+from ..mutation_jobs import MUTATION_TIMEOUT, undo_moves
+from ..receipts import history, receipt_details
 
 router = APIRouter()
 
@@ -25,17 +29,23 @@ def execution_details(task_id: str):
 
 
 @router.post("/undo", response_model=UndoResponse)
-def undo(request: UndoRequest):
+async def undo(request: UndoRequest):
     try:
-        result = undo_recorded(request.task_id)
-    except KeyError as error:
-        raise HTTPException(status_code=404, detail="Execution receipt not found") from error
-    except WriterBusy as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    except (OSError, ValueError) as error:
+        outcome = await run_file_job(
+            undo_moves,
+            request.task_id,
+            settings.database_url,
+            timeout=MUTATION_TIMEOUT,
+        )
+    except TimeoutError as error:
         raise HTTPException(
-            status_code=409, detail="Undo blocked because the receipt or files changed"
+            504, "Restore timed out. Check execution history before retrying."
         ) from error
+    except RuntimeError as error:
+        raise HTTPException(503, "Restore could not finish. Check execution history.") from error
+    if "error" in outcome:
+        raise HTTPException(outcome["status"], outcome["error"])
+    result = ExecutionResult.model_validate(outcome["result"])
 
     failed = bool(result.failed_actions or result.error_message)
     return UndoResponse(
@@ -48,7 +58,7 @@ def undo(request: UndoRequest):
             if failed
             else (
                 "Confirmed files restored. Check the remaining paths."
-                if receipt_state(request.task_id) == "restored_with_uncertainty"
+                if outcome["uncertain"]
                 else "Files restored"
             )
         ),

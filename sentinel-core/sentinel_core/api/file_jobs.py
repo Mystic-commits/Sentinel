@@ -1,4 +1,4 @@
-"""Run read-only filesystem jobs in a worker that can be stopped at a deadline."""
+"""Run filesystem jobs in a worker that can be stopped at a deadline."""
 
 import asyncio
 import json
@@ -23,7 +23,7 @@ def _write_result(job: Callable, args: tuple, result_path: Path) -> None:
     result_path.write_text(json.dumps(report), encoding="utf-8")
 
 
-def _run_worker(job: Callable, args: tuple, timeout: float) -> dict:
+def run_file_job_sync(job: Callable, *args, timeout: float = SCAN_WORKER_TIMEOUT) -> dict:
     with TemporaryDirectory(prefix="sentinel-job-") as folder:
         result_path = Path(folder) / "result.json"
         worker = get_context("spawn").Process(
@@ -49,7 +49,7 @@ def _run_worker(job: Callable, args: tuple, timeout: float) -> dict:
 
 
 async def run_file_job(job: Callable, *args, timeout: float = SCAN_WORKER_TIMEOUT) -> dict:
-    return await asyncio.to_thread(_run_worker, job, args, timeout)
+    return await asyncio.to_thread(run_file_job_sync, job, *args, timeout=timeout)
 
 
 def _resolve_folder(path: str) -> Path:
