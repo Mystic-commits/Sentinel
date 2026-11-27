@@ -51,7 +51,7 @@ class OllamaClient(LLMProvider):
     def __init__(self, base_url: str = "http://localhost:11434", timeout: float = 30.0):
         self.base_url = base_url
         self.timeout = timeout
-        self.client = httpx.Client(base_url=base_url, timeout=timeout)
+        self.client = httpx.Client(base_url=base_url, timeout=timeout, trust_env=False)
 
     def health_check(self) -> bool:
         """Checks if Ollama instance is reachable."""
@@ -78,9 +78,7 @@ class OllamaClient(LLMProvider):
         except httpx.RequestError as e:
             raise OllamaConnectionError(f"Connection error: {e}") from e
         except httpx.HTTPStatusError as e:
-            raise OllamaGenerationError(
-                f"HTTP error {e.response.status_code}: {e.response.text}"
-            ) from e
+            raise OllamaGenerationError(f"HTTP error {e.response.status_code}") from e
         except Exception as e:
             raise OllamaGenerationError(f"Unexpected error: {e}") from e
 
@@ -115,15 +113,13 @@ class OllamaClient(LLMProvider):
             try:
                 return json.loads(raw_response)
             except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON received from Ollama: {raw_response[:100]}...")
+                logger.warning("Ollama returned invalid JSON")
                 raise  # Triggers retry
 
         except httpx.RequestError as e:
             raise OllamaConnectionError(f"Connection error: {e}") from e
         except httpx.HTTPStatusError as e:
-            raise OllamaGenerationError(
-                f"HTTP error {e.response.status_code}: {e.response.text}"
-            ) from e
+            raise OllamaGenerationError(f"HTTP error {e.response.status_code}") from e
 
     def close(self):
         self.client.close()

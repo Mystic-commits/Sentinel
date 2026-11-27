@@ -116,7 +116,9 @@ class CleanPCPipeline:
 
         # 3. Classify files
         logger.info("Classifying files...")
-        classifications = self.classifier.classify_all(all_files)
+        classifications = self.classifier.classify_all(
+            all_files, detect_duplicates=not scoped_moves_only
+        )
 
         # 4. Apply organization rules
         logger.info("Applying organization rules...")

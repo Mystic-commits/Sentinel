@@ -272,3 +272,21 @@ def test_failed_planning_remains_queryable(tmp_path, monkeypatch):
             assert latest["created_at"] == detail["created_at"]
         finally:
             task_store.pop(task_id, None)
+
+
+def test_folder_plan_classifies_without_reading_file_contents(tmp_path, monkeypatch):
+    from sentinel_core.cleanpc.classifiers import FileClassifier
+
+    def forbid_hashing(*_args):
+        pytest.fail("Folder-scoped planning must not hash file contents")
+
+    monkeypatch.setattr(FileClassifier, "_compute_hash", forbid_hashing)
+    (tmp_path / "invoice.pdf").write_bytes(b"invoice")
+    with authorized_client() as client:
+        response = client.post("/api/plan", json={"path": str(tmp_path), "use_ai": False})
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+        try:
+            assert client.get(f"/api/tasks/{task_id}").json()["state"] == "review"
+        finally:
+            task_store.pop(task_id, None)

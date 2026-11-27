@@ -455,3 +455,9 @@ class TestBackwardCompatibility:
         client = OllamaClient()
         result = client.generate_json("test prompt", "llama2")
         assert result == payload
+
+
+@patch("sentinel_core.planner.ollama_client.httpx.Client")
+def test_ollama_ignores_ambient_proxy_config(client):
+    OllamaClient().close()
+    assert client.call_args.kwargs["trust_env"] is False

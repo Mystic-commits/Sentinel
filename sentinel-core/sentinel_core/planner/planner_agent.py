@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 from jinja2 import Template
+from pydantic import ValidationError
 
 from sentinel_core.models.filesystem import ScanResult
 from sentinel_core.models.planner import PlanSchema
@@ -106,7 +107,5 @@ class PlannerAgent:
         try:
             plan = PlanSchema(**response_data)
             return plan
-        except Exception as e:
-            logger.error(f"Failed to validate plan: {e}")
-            logger.debug(f"Raw response: {response_data}")
-            raise ValueError(f"LLM produced invalid plan schema: {e}") from e
+        except (TypeError, ValidationError):
+            raise ValueError("LLM produced invalid plan schema") from None

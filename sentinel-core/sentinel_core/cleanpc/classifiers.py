@@ -76,12 +76,15 @@ class FileClassifier:
         """Initialize the file classifier."""
         self._hash_cache: dict[str, str] = {}
 
-    def classify_all(self, files: list[FileMetadata]) -> list[FileClassification]:
+    def classify_all(
+        self, files: list[FileMetadata], *, detect_duplicates: bool = True
+    ) -> list[FileClassification]:
         """
         Classify all files in the list.
 
         Args:
             files: List of file metadata to classify
+            detect_duplicates: Read file contents to identify duplicate files
 
         Returns:
             List of file classifications
@@ -89,7 +92,8 @@ class FileClassifier:
         classifications = []
 
         # Build hash map for duplicate detection
-        hash_map = self._build_hash_map(files)
+        self._hash_cache.clear()
+        hash_map = self._build_hash_map(files) if detect_duplicates else {}
 
         for file in files:
             classification = self._classify_file(file, hash_map)
