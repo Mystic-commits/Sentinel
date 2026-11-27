@@ -22,7 +22,7 @@ npm run dev
 
 Open [the local dashboard](http://localhost:3000/dashboard), enter the access token printed in the backend terminal, then enter the absolute path of your sample folder, and review the plan before applying any changes. The planning pipeline currently targets the local Ollama service using `llama2` and can fall back to rules. Folder selection determines scope.
 
-The dashboard uses local rules by default. Enable **Use local AI (Ollama)** to send folder metadata and optional instructions to your local model. The review identifies the source of the plan, including when Sentinel falls back to rules. The model proposes moves using inventory IDs and relative destinations. Sentinel maps those IDs to the scanned files and checks each destination before presenting the plan.
+The dashboard uses local rules by default. Enable **Use local AI (Ollama)** to send folder metadata and optional instructions to your local model. The review identifies the source of the plan, including when Sentinel falls back to rules. The model proposes moves using inventory IDs and relative destination folders. Sentinel keeps the original filenames and validates each proposed move before presenting the plan.
 
 ### Review and apply a plan from the terminal
 
