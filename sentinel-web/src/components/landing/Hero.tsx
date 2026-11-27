@@ -21,7 +21,7 @@ export default function Hero() {
             <section className="site-shell site-intro">
                 <h1>Find a place<br />for every file<span>.</span></h1>
                 <div className="site-intro-side">
-                    <p>Sentinel organizes files on your computer with local AI. Review every move before it happens, and restore eligible changes from your history.</p>
+                    <p>Organize a folder with local rules or an optional AI model on your computer. Review every move before it happens, and restore eligible changes from your history.</p>
                     <div className="site-actions">
                         <a className="site-button" href="#sample-folder">Try the demo <ArrowDown size={16} aria-hidden /></a>
                         <Link className="site-text-link" href="/how-it-works">How it works <ArrowRight size={16} aria-hidden /></Link>

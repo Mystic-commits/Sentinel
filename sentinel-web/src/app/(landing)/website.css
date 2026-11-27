@@ -15,7 +15,12 @@
 .site-nav, .site-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 76px; }
 .site-nav nav, .site-footer nav { display: flex; flex-wrap: wrap; gap: 24px; font-size: 14px; color: var(--secondary); }
 .site-nav-actions { display: flex; align-items: center; gap: 12px; }
-.site-mobile-docs { display: none; font-size: 14px; font-weight: 750; }
+.site-skip { position: absolute; z-index: 2; top: 8px; left: 8px; padding: 10px 16px; background: white; transform: translateY(-160%); }
+.site-skip:focus { transform: none; }
+.site-inline-link { color: var(--blue); text-decoration: underline; }
+.setup-help details { border-bottom: 1px solid var(--line); }
+.setup-help summary { cursor: pointer; font-weight: 700; padding: 14px 0; }
+.setup-help details p { padding-bottom: 16px; }
 .site-nav nav a:hover, .site-footer nav a:hover, .site-text-link:hover { color: var(--blue); }
 .site-wordmark, .sample-app { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; }
 .site-wordmark { font-size: 21px; letter-spacing: -.055em; }
@@ -78,8 +83,9 @@
 @media (max-width: 760px) {
     .site-shell { width: calc(100% - 32px); }
     .site-nav { min-height: 62px; gap: 8px; }
-    .site-mobile-docs { display: inline; }
-    .site-nav nav { display: none; }
+    .site-nav { flex-wrap: wrap; padding-top: 12px; }
+    .site-nav nav { order: 1; width: 100%; gap: 20px; }
+    .site-nav nav a { display: inline-flex; align-items: center; min-height: 44px; }
     .site-intro { grid-template-columns: 1fr; gap: 18px; padding-block: 40px 28px; }
     .site-intro-side p { font-size: 15px; }
     .site-actions { margin-top: 16px; }

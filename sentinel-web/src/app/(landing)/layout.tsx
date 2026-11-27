@@ -13,6 +13,7 @@ const links = [
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="sentinel-site">
+            <a className="site-skip" href="#page-content">Skip to content</a>
             <header className="site-header">
                 <div className="site-shell site-nav">
                     <Link href="/" className="site-wordmark"><SiteMark />Sentinel</Link>
@@ -20,12 +21,11 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
                         {links.map(link => <Link key={link.href} href={link.href}>{link.label}</Link>)}
                     </nav>
                     <div className="site-nav-actions">
-                        <Link className="site-mobile-docs" href="/docs">Docs</Link>
                         <Link className="site-button site-button-small" href="/download">Get Sentinel <span aria-hidden>↗</span></Link>
                     </div>
                 </div>
             </header>
-            <main>{children}</main>
+            <main id="page-content" tabIndex={-1}>{children}</main>
             <footer className="site-footer">
                 <div className="site-shell site-footer-inner">
                     <Link href="/" className="site-wordmark"><SiteMark />Sentinel</Link>

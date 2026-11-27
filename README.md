@@ -4,7 +4,7 @@ Sentinel is a local-first file organizer in developer preview. It scans a folder
 
 ## Try the developer preview
 
-Use a disposable folder with copies of files. Start the backend and dashboard in separate terminals from the checkout. The project uses Python 3.11 or 3.12, Poetry, and Node.js 22.
+Check out the codex/production-readiness preview branch. Use a disposable folder with copies of files. Start the backend and dashboard in separate terminals from the checkout. The project uses Python 3.11 or 3.12, Poetry, and Node.js 22.
 
 ```sh
 cd sentinel-core

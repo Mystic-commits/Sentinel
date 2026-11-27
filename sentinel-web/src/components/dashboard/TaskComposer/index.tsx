@@ -41,7 +41,7 @@ export default function TaskComposer() {
 
     return (
         <form onSubmit={handleSubmit} className="workspace-panel mb-3 p-4 sm:p-5">
-            <label htmlFor="folder-path" className="mb-2 block text-sm font-semibold">Folder path</label>
+            <label htmlFor="folder-path" className="mb-2 block text-sm font-semibold">Absolute folder path</label>
             <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex min-w-0 flex-1 items-center gap-3 workspace-input px-3">
                     <FolderOpen size={18} className="shrink-0 text-[#263bc0]" aria-hidden />

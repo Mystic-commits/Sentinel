@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import SiteMark from '@/components/landing/SiteMark';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { FormEvent, useEffect, useState, useSyncExternalStore } from 'react';
@@ -97,6 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {connecting ? 'Connecting…' : 'Connect'}
                 </button>
             </form>
+            <Link href="/docs" className="mt-6 inline-block text-sm font-semibold underline">Local setup guide</Link>
         </main>
     );
 }
