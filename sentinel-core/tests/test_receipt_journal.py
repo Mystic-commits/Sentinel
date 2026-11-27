@@ -125,3 +125,25 @@ def test_interrupted_undo_preserves_per_file_restore_evidence(batch, monkeypatch
     first, second = receipts.receipt_details(batch.task_id)
     assert (first["undo_state"], second["undo_state"]) == ("started", "done")
     assert all(Path(action.source_path).exists() for action in batch.actions)
+
+
+def test_receipt_never_confirms_a_replaced_destination(batch, monkeypatch):
+    action = batch.actions[0]
+    real_execute = receipts.execute_plan
+
+    def replace_destination(plan):
+        result = real_execute(plan)
+        destination = Path(action.destination_path)
+        destination.rename(destination.with_suffix(".moved"))
+        destination.write_text("unrelated replacement")
+        return result
+
+    monkeypatch.setattr(receipts, "execute_plan", replace_destination)
+    receipts.record_start(batch)
+    result = receipts.run_recorded(batch, receipts.snapshot_sources(batch))
+    assert result.successful_actions == 0
+    assert "destination changed" in result.error_message
+    assert receipts.receipt_details(batch.task_id)[0]["apply_state"] == "started"
+    with pytest.raises(ValueError, match="receipt can be undone"):
+        receipts.undo_recorded(batch.task_id)
+    assert Path(action.destination_path).read_text() == "unrelated replacement"

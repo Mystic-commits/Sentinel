@@ -4,6 +4,7 @@ import json
 import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
+from stat import S_ISREG
 
 from sentinel_core.executor.executor import execute_plan
 from sentinel_core.models.enums import ActionType
@@ -70,10 +71,9 @@ def database():
 
 
 def identity(path: str) -> tuple[int, ...]:
-    file = Path(path)
-    if file.is_symlink() or not file.is_file():
+    info = Path(path).lstat()
+    if not S_ISREG(info.st_mode):
         raise ValueError("Expected a regular file")
-    info = file.stat()
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
@@ -158,9 +158,14 @@ def _recorded_moves(plan, operations, *, undo: bool = False) -> ExecutionResult:
                     "WHERE task_id = ? AND action_index = ?",
                     (plan.task_id, index),
                 )
+            _check_move(plan, action, expected)
             result = execute_plan(_single_move(plan, action))
             if result.failed_actions or result.error_message:
                 raise ValueError(result.error_message or "File operation did not complete")
+            moved = identity(action.destination_path)
+            # Rename can change ctime. The device, inode, size and mtime should match.
+            if moved[:-1] != expected[:-1]:
+                raise ValueError("The destination changed during the move. Inspect the receipt.")
             with database() as connection:
                 if undo:
                     connection.execute(
@@ -171,7 +176,7 @@ def _recorded_moves(plan, operations, *, undo: bool = False) -> ExecutionResult:
                     connection.execute(
                         "UPDATE receipt_operations SET apply_state = 'done', destination_identity = ? "
                         "WHERE task_id = ? AND action_index = ?",
-                        (json.dumps(identity(action.destination_path)), plan.task_id, index),
+                        (json.dumps(moved), plan.task_id, index),
                     )
             succeeded += 1
         except (OSError, ValueError, sqlite3.Error) as error:
