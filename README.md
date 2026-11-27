@@ -37,6 +37,8 @@ poetry run sentinel undo TASK_ID
 
 Repeat `--action` to approve multiple changes. Omitting it selects the entire displayed plan and prompts for confirmation. Leave off `--rules-only` to try local Ollama, or use `--no-save` to print a plan without persisting it. Saved plans and execution receipts use the local Sentinel SQLite database.
 
+Use `sentinel clean-pc` to create rules-based plans for Downloads, Desktop, and Documents, or pass repeated `--location` options. Add `--execute` to review and confirm each folder before moving files. Use `sentinel scan --verbose` to list the ten largest files reached by the scan. These commands run through `poetry run` from the backend directory.
+
 Use `poetry run sentinel --help` to see all commands. Download availability is listed on the [public site](https://sentinel-ten-black.vercel.app/download).
 
 ## Repository layout

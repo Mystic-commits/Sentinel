@@ -9,16 +9,9 @@ from typing import Annotated, Optional
 
 import typer
 
-from sentinel_core.scanner import scan_directory
-
-try:
-    from sentinel_core.planner import PlannerAgent
-
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-
-from ..console import console, watch_status
+from ..console import console
+from .apply import apply_command
+from .plan import plan_command
 
 
 def clean_command(
@@ -61,66 +54,7 @@ def clean_command(
         console.print("\n[info]Usage:[/] sentinel clean-pc --location Downloads --location Desktop")
         raise typer.Exit(1)
 
-    # Header
-    console.print(f"[info]🧹 Cleaning {len(paths_to_clean)} locations...[/]\n")
-
-    if dry_run:
-        console.print("[highlight]Dry-run mode:[/] No changes will be made")
-        console.print("[muted]Use --execute to apply changes[/]\n")
-
-    # Process each location
-    task_ids = []
-
-    for loc_name, path in paths_to_clean:
-        console.print(f"[highlight]📁 {loc_name}[/] ([path]{path}[/path])")
-
-        # Scan
-        with watch_status(f"[info]Scanning {loc_name}..."):
-            try:
-                scan_result = scan_directory(str(path))
-            except Exception as e:
-                console.print(f"  [error]✗ Error:[/] {e}\n")
-                continue
-
-        if scan_result.total_files == 0:
-            console.print("  [muted]Empty directory[/]\n")
-            continue
-
-        console.print(f"  Files: [count]{scan_result.total_files}[/count]")
-
-        #        # Plan
-        if not BACKEND_AVAILABLE:
-            console.print("  [warning]⚠ Planner not available yet[/]\n")
-            continue
-
-        with watch_status("Planning..."):
-            try:
-                planner = PlannerAgent()
-                plan = planner.generate(
-                    scan_result, user_prompt="Organize and clean this directory"
-                )
-            except Exception as e:
-                console.print(f"  [error]✗ Error:[/] {e}\n")
-                continue
-
-        console.print(f"  Actions: [count]{len(plan.actions)}[/count]")
-        console.print(f"  Task ID: [highlight]{plan.task_id}[/]\n")
-
-        task_ids.append(plan.task_id)
-
-    # Summary
-    if task_ids:
-        console.print(f"[success]✓ Created {len(task_ids)} organization plans[/]\n")
-
-        if dry_run:
-            console.print("[highlight]Next steps:[/]")
-            console.print("  Review and execute each plan:")
-            for task_id in task_ids:
-                console.print(f"    [path]sentinel apply {task_id}[/path]")
-        else:
-            console.print("[info]Plans executed successfully[/]")
-            console.print("\n[highlight]To undo:[/]")
-            for task_id in task_ids:
-                console.print(f"  [path]sentinel undo {task_id}[/path]")
-    else:
-        console.print("[warning]No plans created[/]")
+    for _, path in paths_to_clean:
+        task_id = plan_command(path=path, rules_only=True)
+        if task_id and not dry_run:
+            apply_command(task_id)

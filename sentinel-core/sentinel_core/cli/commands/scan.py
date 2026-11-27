@@ -9,8 +9,10 @@ from typing import Annotated
 
 import typer
 from rich.table import Table
+from rich.text import Text
 
-from sentinel_core.scanner import scan_directory
+from sentinel_core.api.limits import MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS
+from sentinel_core.scanner import Scanner
 
 from ..console import console, watch_status
 
@@ -48,22 +50,25 @@ def scan_command(
 
     with watch_status("[info]Analyzing files..."):
         try:
-            result = scan_directory(str(path.absolute()))
+            result = Scanner(
+                str(path.absolute()),
+                include_previews=False,
+                max_entries=MAX_SCAN_ENTRIES,
+                max_seconds=MAX_SCAN_SECONDS,
+            ).scan()
         except Exception as e:
             console.print(f"[error]Error during scan:[/] {e}")
             raise typer.Exit(1) from e
 
     # Display summary
-    console.print("\n[success]✓ Scan complete[/]")
+    console.print(
+        "[warning]Partial scan. Showing files reached within scan limits.[/]"
+        if result.truncated
+        else "[success]Scan complete[/]"
+    )
 
     total_files = len(result.files)
     total_size = sum(f.size_bytes for f in result.files)
-    (
-        (result.scanned_at - result.scanned_at).total_seconds()
-        if hasattr(result, "scan_duration_seconds")
-        else 0.0
-    )
-
     console.print(f"  Total files: [count]{total_files}[/count]")
     console.print(f"  Total size: [count]{_format_size(total_size)}[/count]")
 
@@ -120,9 +125,12 @@ def scan_command(
     if verbose:
         console.print("\n[highlight]Top 10 Largest Files:[/]")
 
-        # This would require file-level data from scanner
-        # For now, just show a placeholder
-        console.print("[muted]  (File-level details coming soon)[/muted]")
+        for file in sorted(result.files, key=lambda file: file.size_bytes, reverse=True)[:10]:
+            console.print(
+                Text(
+                    f"  {_format_size(file.size_bytes):>10}  {Path(file.path).relative_to(path.resolve())}"
+                )
+            )
 
     console.print("\n[highlight]Next steps:[/]")
     console.print(f"  • Create organization plan: [path]sentinel plan {path}[/path]")

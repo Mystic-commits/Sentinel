@@ -83,6 +83,7 @@ def plan_command(
         if save:
             save_plan(plan)
             console.print(f"Preview saved plan: sentinel apply {task_id} --dry-run")
+            return task_id
     except Exception as error:
         console.print(Text(f"Could not create the plan: {error}", style="error"))
         raise typer.Exit(1) from error

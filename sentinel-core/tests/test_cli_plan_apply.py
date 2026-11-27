@@ -57,3 +57,34 @@ def test_cli_no_save_does_not_write_plan(sample):
     assert result.exit_code == 0, result.output
     assert "Preview saved plan" not in result.output
     assert not (sample.parent / "sentinel.db").exists()
+
+
+def test_clean_command_reviews_then_applies_only_after_confirmation(sample):
+    args = ["clean-pc", "--location", str(sample)]
+    preview = runner.invoke(app, args)
+    assert preview.exit_code == 0 and "Preview saved plan" in preview.output
+    cancelled = runner.invoke(app, [*args, "--execute"], input="n\n")
+    assert cancelled.exit_code == 0 and "Cancelled" in cancelled.output
+    assert (sample / "invoice.txt").is_file()
+    applied = runner.invoke(app, [*args, "--execute"], input="y\n")
+    assert applied.exit_code == 0 and "Applied 2 changes" in applied.output
+    assert not (sample / "invoice.txt").exists()
+
+
+def test_verbose_scan_lists_real_files(sample):
+    result = runner.invoke(app, ["scan", str(sample), "--verbose"])
+    assert result.exit_code == 0
+    assert "holiday.jpg" in result.output and "invoice.txt" in result.output
+
+
+def test_ask_uses_local_provider(sample, monkeypatch):
+    from sentinel_core.planner.ollama_client import OllamaClient
+
+    def generate(_self, prompt, model):
+        assert str(sample) in prompt and "Where" in prompt
+        assert model == "llama2"
+        return "Provider response"
+
+    monkeypatch.setattr(OllamaClient, "generate", generate)
+    result = runner.invoke(app, ["ask", "Where should invoices go?", "--path", str(sample)])
+    assert result.exit_code == 0 and "Provider response" in result.output

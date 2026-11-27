@@ -38,8 +38,8 @@ def ask_command(
 
     # Get AI response
     with watch_status("[info]🤖 Thinking..."):
+        client = OllamaClient()
         try:
-            client = OllamaClient()
 
             # Build context
             context = None
@@ -49,7 +49,9 @@ def ask_command(
                 context = f"User is asking about files in: {context_path.absolute()}"
 
             # Get response
-            response = client.chat(question, context=context)
+            response = client.generate(
+                f"{context}\n\n{question}" if context else question, model="llama2"
+            )
 
         except Exception as e:
             console.print(f"[error]Error communicating with AI:[/] {e}")
@@ -58,6 +60,8 @@ def ask_command(
             console.print("  • Check model is available: [path]ollama list[/path]")
             console.print("  • Start Ollama: [path]ollama serve[/path]")
             raise typer.Exit(1) from e
+        finally:
+            client.close()
 
     # Display response
     console.print()
