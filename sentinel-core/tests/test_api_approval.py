@@ -220,3 +220,24 @@ def test_folder_jobs_require_explicit_absolute_path(route, folder):
     with authorized_client() as client:
         response = client.post(route, json={"path": folder})
     assert response.status_code == 422
+
+
+def test_failed_planning_remains_queryable(tmp_path, monkeypatch):
+    from sentinel_core.cleanpc.pipeline import CleanPCPipeline
+
+    async def fail(*args, **kwargs):
+        raise ValueError("Fixture planning error")
+
+    monkeypatch.setattr(CleanPCPipeline, "scan_and_plan", fail)
+    with authorized_client() as client:
+        response = client.post("/api/plan", json={"path": str(tmp_path), "use_ai": False})
+        task_id = response.json()["task_id"]
+        try:
+            detail = client.get(f"/api/tasks/{task_id}").json()
+            assert detail["state"] == "failed"
+            assert detail["summary"] == "Fixture planning error"
+            latest = client.get("/api/tasks?limit=1").json()["tasks"][0]
+            assert latest["task_id"] == task_id
+            assert latest["created_at"] == detail["created_at"]
+        finally:
+            task_store.pop(task_id, None)

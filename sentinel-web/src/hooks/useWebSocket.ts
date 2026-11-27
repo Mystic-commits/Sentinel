@@ -10,6 +10,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useStore } from './useStore';
 import { LogEntry, TaskState, TaskResult } from '@/lib/types/task';
 
+import { api, APIError } from '@/lib/api/client';
 import { getAccessToken, getEventsUrl } from '@/lib/api/access';
 
 const RECONNECT_DELAY = 3000; // 3 seconds
@@ -41,7 +42,7 @@ export function useWebSocket() {
     const handleMessage = useCallback((message: WebSocketMessage) => {
         const { event_type, task_id, message: msg, timestamp, data } = message;
 
-        console.log(`📨 WebSocket event: ${event_type}`, { task_id, data });
+
 
         switch (event_type) {
             case 'CONNECTION_ACK':
@@ -73,6 +74,7 @@ export function useWebSocket() {
 
             case 'PLAN_READY':
                 if (task_id) {
+                    if (useStore.getState().tasks.find(task => task.id === task_id)?.plan) break;
                     // Map backend 'actions' to frontend 'operations'
                     const backendPlan = data.plan;
                     const rawOps = backendPlan.actions || backendPlan.operations || [];
@@ -229,7 +231,7 @@ export function useWebSocket() {
 
     const connect = useCallback(function connect() {
         // Don't reconnect if already connected
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
+        if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) {
             return;
         }
 
@@ -287,11 +289,57 @@ export function useWebSocket() {
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
             }
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.close();
+            const socket = wsRef.current;
+            wsRef.current = null;
+            if (socket) {
+                socket.onclose = null;
+                socket.onmessage = null;
+                socket.onopen = null;
+                socket.onerror = null;
+                socket.close();
             }
+            setConnected(false);
         };
-    }, [connect]);
+    }, [connect, setConnected]);
+
+    // A fast plan can finish before its HTTP response arrives. Recover missed terminal
+    // events from the API without resetting approvals already made in a review.
+    useEffect(() => {
+        let active = true;
+        let timer: ReturnType<typeof setTimeout>;
+        async function reconcile() {
+            for (const task of useStore.getState().tasks) {
+                if (!active) return;
+                if (task.state !== 'planning' && task.state !== 'executing') continue;
+                try {
+                    const detail = await api.getTask(task.id);
+                    if (!active || useStore.getState().tasks.find(item => item.id === task.id)?.state !== task.state) continue;
+                    if (detail.state === 'review' && detail.plan) {
+                        handleMessage({
+                            event_type: 'PLAN_READY', task_id: task.id, timestamp: new Date().toISOString(),
+                            data: { plan: detail.plan, summary: { planning_source: detail.planning_source } },
+                        });
+                    } else if (detail.state === 'failed' || detail.state === 'completed') {
+                        handleMessage({
+                            event_type: detail.state === 'failed' ? 'ERROR' : 'COMPLETE',
+                            task_id: task.id, timestamp: new Date().toISOString(), data: {},
+                            message: detail.state === 'failed' ? (task.state === 'planning' ? detail.summary : '') || 'Task failed. Check execution history.' : 'Task completed',
+                        });
+                    }
+                } catch (error) {
+                    if (active && error instanceof APIError && error.status === 404) {
+                        handleMessage({
+                            event_type: 'ERROR', task_id: task.id, timestamp: new Date().toISOString(), data: {},
+                            message: 'The backend no longer has this task. Check execution history before scanning again.',
+                        });
+                    }
+                }
+            }
+            if (active) timer = setTimeout(reconcile, RECONNECT_DELAY);
+        }
+        timer = setTimeout(reconcile, RECONNECT_DELAY);
+        return () => { active = false; clearTimeout(timer); };
+    }, [handleMessage]);
 
     const send = useCallback((data: any) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {

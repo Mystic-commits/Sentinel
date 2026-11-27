@@ -1,3 +1,4 @@
+import type { TaskState } from '@/lib/types/task';
 import { getAccessToken, getApiUrl } from './access';
 
 /**
@@ -5,6 +6,10 @@ import { getAccessToken, getApiUrl } from './access';
  * 
  * HTTP client for Sentinel API endpoints.
  */
+
+export class APIError extends Error {
+    constructor(readonly status: number, message: string) { super(message); }
+}
 
 class APIClient {
     private async request<T>(
@@ -24,12 +29,12 @@ class APIClient {
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            const detail = typeof error.detail === 'string' ? error.detail : `HTTP ${response.status}`;
+            const detail = typeof error.detail === 'string' ? error.detail : error.detail?.[0]?.msg || `HTTP ${response.status}`;
             const retryAfter = response.headers.get('Retry-After');
             if (response.status === 429 && retryAfter && /^\d+$/.test(retryAfter)) {
                 throw new Error(`${detail}. Try again in ${retryAfter}s.`);
             }
-            throw new Error(detail);
+            throw new APIError(response.status, detail);
         }
 
         return response.json();
@@ -77,7 +82,7 @@ class APIClient {
 
     // Get task by ID
     async getTask(id: string) {
-        return this.request(`/tasks/${id}`);
+        return this.request<{ state: TaskState; plan: Record<string, unknown> | null; planning_source: string | null; summary: string }>(`/tasks/${encodeURIComponent(id)}`);
     }
 
     async history() {

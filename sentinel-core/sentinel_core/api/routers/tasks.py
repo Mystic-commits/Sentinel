@@ -4,7 +4,7 @@ Tasks Router
 Endpoints for listing and retrieving task details.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from ..models.responses import TaskListResponse, TaskDetailResponse, TaskListItem
 from sentinel_core.models.enums import TaskState
 from datetime import datetime
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.get("/tasks", response_model=TaskListResponse)
-async def list_tasks(limit: int = 100, offset: int = 0):
+async def list_tasks(limit: int = Query(100, ge=1, le=100), offset: int = Query(0, ge=0)):
     """
     List all tasks.
     
@@ -36,21 +36,18 @@ async def list_tasks(limit: int = 100, offset: int = 0):
     logger.info(f"Tasks list requested (limit={limit}, offset={offset})")
     
     tasks = []
-    # Sort by timestamp (if available) or insertion order (reversed)
-    sorted_ids = sorted(task_store.keys(), reverse=True)
-    
-    for task_id in sorted_ids[offset:offset+limit]:
+    # Tasks are inserted when accepted and keep their position through state updates.
+    for task_id in list(reversed(task_store))[offset:offset + limit]:
         data = task_store[task_id]
-        # Construct TaskListItem from stored data
-        # Note: This is a simplification. Real implementation would map fields.
+        plan = data.get("plan")
+        summary = data.get("summary")
         tasks.append(TaskListItem(
             task_id=task_id,
-            state=data.get("state", TaskState.SCANNING), # Default to scanning if state missing
-            created_at=datetime.utcnow(), # Placeholder timestamp
-            summary=data.get("summary", "Task in progress") if isinstance(data.get("summary"), str) else "Task in progress",
-            total_files=data.get("summary", {}).get("total_files", 0) if isinstance(data.get("summary"), dict) else 0
+            state=data["state"],
+            created_at=data["created_at"],
+            summary=plan.summary if plan else summary if isinstance(summary, str) else "",
         ))
-    
+
     return TaskListResponse(
         tasks=tasks,
         total=len(task_store)

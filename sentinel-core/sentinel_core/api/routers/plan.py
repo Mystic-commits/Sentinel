@@ -6,6 +6,7 @@ Endpoint for creating organization plans.
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from ..limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS, schedule_scan_job
+from ..memory import save_task
 from ..receipts import snapshot_sources
 from ..models.requests import PlanRequest
 from ..models.responses import PlanResponse
@@ -94,7 +95,6 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             summary = result["summary"]
 
             # Save plan to memory store
-            from ..memory import save_task
             identities = await asyncio.to_thread(snapshot_sources, plan)
             save_task(task_id, {
                 "plan": plan, "summary": summary, "state": TaskState.REVIEW,
@@ -121,6 +121,7 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
             ))
             
         except Exception as e:
+            save_task(task_id, {"state": TaskState.FAILED, "summary": str(e)})
             logger.error(f"Planning failed: {e}")
             await ws_manager.broadcast(WebSocketEvent(
                 event_type=EventType.ERROR,
@@ -132,6 +133,8 @@ async def plan(request: PlanRequest, background_tasks: BackgroundTasks):
     # Start background task
     schedule_scan_job(background_tasks, perform_planning, task_id, str(selected_root))
     
+    save_task(task_id, {"state": TaskState.PLANNING, "authorized_root": str(selected_root)})
+
     # Return initial response
     return PlanResponse(
         task_id=task_id,

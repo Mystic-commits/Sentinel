@@ -130,11 +130,12 @@ function PreviewPanel({ task }: { task: any }) {
 }
 
 function DiffsPanel({ task }: { task: any }) {
-    const { updateOperationStatus, bulkUpdateOperations } = useStore();
+    const { updateOperationStatus, bulkUpdateOperations, updateTask } = useStore();
     const [error, setError] = useState<string | null>(null);
     const [applying, setApplying] = useState(false);
 
     if (!task) return <EmptyState message="Scan a folder to review its proposed moves." />;
+    if (task.state === 'failed') return <EmptyState message="Task failed. Open Activity for details and check execution history for any recorded moves." />;
     if (!task.plan?.operations || task.plan.operations.length === 0) {
         return <EmptyState message={task.state === "review" ? "No moves were proposed for this folder." : "Proposed moves will appear here when planning finishes."} />;
     }
@@ -161,6 +162,9 @@ function DiffsPanel({ task }: { task: any }) {
                 setApplying(true);
                 try {
                     await api.executeTask(task.id, approved);
+                    if (useStore.getState().tasks.find(item => item.id === task.id)?.state === 'review') {
+                        updateTask(task.id, { state: 'executing' });
+                    }
                 } catch (error) {
                     setError(error instanceof Error ? error.message : 'Could not apply moves.');
                 } finally {
