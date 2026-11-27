@@ -179,7 +179,12 @@ class CleanPCPipeline:
             plan = fallback()
         else:
             plan = self._plan_with_fallback(
-                task_id, combined_scan, rule_matches, preferences, fallback
+                task_id,
+                combined_scan,
+                rule_matches,
+                preferences,
+                fallback,
+                scoped=scoped_moves_only,
             )
 
         if len(target_dirs) == 1:
@@ -263,13 +268,16 @@ class CleanPCPipeline:
             },
         }
 
-    def _plan_with_fallback(self, task_id, combined_scan, rule_matches, preferences, fallback):
+    def _plan_with_fallback(
+        self, task_id, combined_scan, rule_matches, preferences, fallback, *, scoped=False
+    ):
         try:
             plan = self.planner.create_plan(
                 task_id=task_id,
                 scan_result=combined_scan,
                 rule_matches=rule_matches,
                 preferences=preferences,
+                **({"scoped": True} if scoped else {}),
             )
         except Exception as e:
             logger.error(f"Failed to generate plan: {e}")

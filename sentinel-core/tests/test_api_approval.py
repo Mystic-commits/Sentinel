@@ -290,3 +290,28 @@ def test_folder_plan_classifies_without_reading_file_contents(tmp_path, monkeypa
             assert client.get(f"/api/tasks/{task_id}").json()["state"] == "review"
         finally:
             task_store.pop(task_id, None)
+
+
+@pytest.mark.parametrize("proposal", ["Invoices/invoice.pdf", "../outside.pdf", "C:/outside.pdf"])
+def test_scoped_model_proposal_uses_inventory_ids(tmp_path, monkeypatch, proposal):
+    from sentinel_core.planner.ollama_client import OllamaClient
+
+    def generate(_self, prompt, model):
+        assert model == "llama2"
+        assert str(tmp_path) not in prompt
+        return {"moves": [{"file_id": "F1", "destination": proposal}]}
+
+    monkeypatch.setattr(OllamaClient, "generate_json", generate)
+    (tmp_path / "invoice.pdf").write_bytes(b"fixture")
+    with authorized_client() as client:
+        response = client.post("/api/plan", json={"path": str(tmp_path), "use_ai": True})
+        assert response.status_code == 200
+        task_id = response.json()["task_id"]
+        try:
+            detail = client.get(f"/api/tasks/{task_id}").json()
+            ai_plan = proposal.startswith("Invoices/")
+            assert detail["planning_source"] == ("ai" if ai_plan else "rules")
+            destination = proposal if ai_plan else "document/invoice.pdf"
+            assert Path(detail["plan"]["actions"][0]["destination_path"]) == tmp_path / destination
+        finally:
+            task_store.pop(task_id, None)
