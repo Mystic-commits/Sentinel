@@ -101,3 +101,6 @@
     .site-interior { padding-block: 45px 60px; }
 }
 @media (prefers-reduced-motion: reduce) { .site-button { transition: none; } }
+
+.site-interior section[id] { scroll-margin-top: 24px; }
+.site-interior h3 { margin-top: 14px; font-size: 15px; font-weight: 750; }

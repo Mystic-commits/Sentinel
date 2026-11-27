@@ -7,18 +7,31 @@ export default function DocsPage() {
     return (
         <article className="site-shell site-interior">
             <h1>Developer setup.</h1>
-            <p className="site-lead">Run the backend and dashboard locally in separate terminals. You’ll need Python 3.11 or 3.12, Poetry, Node.js 22, and two shell windows. These commands use a POSIX shell.</p>
+            <p className="site-lead">Run the backend and dashboard locally in separate terminals. You’ll need Python 3.11 or 3.12, Poetry, Node.js 22, and two shell windows.</p>
             <section>
                 <h2>Clone the preview branch</h2>
                 <CopyCommands commands={'git clone --branch codex/production-readiness https://github.com/Mystic-commits/Sentinel.git'} />
             </section>
-            <section>
-                <h2>Start the local backend</h2>
+            <nav aria-label="Setup platforms" className="site-actions">
+                <a href="#mac-linux" className="site-inline-link">macOS and Linux</a>
+                <a href="#windows" className="site-inline-link">Windows PowerShell</a>
+            </nav>
+            <section id="mac-linux">
+                <h2>macOS and Linux</h2>
+                <h3>Start the local backend</h3>
                 <CopyCommands commands={'cd Sentinel/sentinel-core\npoetry install\nexport SENTINEL_ACCESS_TOKEN="$(python3 -c \'import secrets; print(secrets.token_hex(32))\')"\nprintf \'%s\\n\' "$SENTINEL_ACCESS_TOKEN"\npoetry run uvicorn sentinel_core.api.main:app --host 127.0.0.1 --port 8000'} />
+                <h3>Start the dashboard in a second terminal</h3>
+                <CopyCommands commands={'cd Sentinel/sentinel-web\nnpm ci\nnpm run dev'} />
+            </section>
+            <section id="windows">
+                <h2>Windows PowerShell</h2>
+                <h3>Start the local backend</h3>
+                <CopyCommands commands={'Set-Location Sentinel/sentinel-core\npoetry install\n$env:SENTINEL_ACCESS_TOKEN = py -3 -c "import secrets; print(secrets.token_hex(32))"\n$env:SENTINEL_ACCESS_TOKEN\npoetry run uvicorn sentinel_core.api.main:app --host 127.0.0.1 --port 8000'} />
+                <h3>Start the dashboard in a second terminal</h3>
+                <CopyCommands commands={'Set-Location Sentinel/sentinel-web\nnpm.cmd ci\nnpm.cmd run dev'} />
             </section>
             <section>
-                <h2>Start the dashboard</h2>
-                <CopyCommands commands={'cd Sentinel/sentinel-web\nnpm ci\nnpm run dev'} />
+                <h2>Connect the dashboard</h2>
                 <p>Open <a className="site-inline-link" href="http://localhost:3000/dashboard">the local dashboard</a> and paste the token shown in the backend terminal.</p>
             </section>
             <section aria-labelledby="first-plan">
