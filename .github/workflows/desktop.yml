@@ -8,6 +8,10 @@ on:
       - 'sentinel-core/**'
       - 'sentinel-web/**'
 
+concurrency:
+  group: desktop-preview-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -43,9 +47,6 @@ jobs:
       - name: Build native desktop preview
         working-directory: sentinel-web
         run: npm run tauri:build -- --bundles ${{ matrix.bundles }} -- --locked
-      - name: Smoke test the frozen backend
-        working-directory: sentinel-core
-        run: poetry run python ../sentinel-web/scripts/check-sidecar.py
       - uses: actions/upload-artifact@v4
         with:
           name: sentinel-desktop-preview-${{ matrix.runner }}
@@ -53,3 +54,44 @@ jobs:
             sentinel-web/src-tauri/target/release/bundle/dmg/*.dmg
             sentinel-web/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
+
+  package-smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: sentinel-web/scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: sentinel-desktop-preview-${{ matrix.runner }}
+          path: packages
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install WebSocket client for the test driver
+        run: python -m pip install websockets==16.1.1
+      - name: Verify and launch the backend from the mounted DMG
+        if: runner.os == 'macOS'
+        run: |
+          image=$(find packages -name '*.dmg' -type f)
+          mount_dir=$(mktemp -d)
+          hdiutil verify "$image"
+          hdiutil attach "$image" -readonly -nobrowse -mountpoint "$mount_dir"
+          trap 'hdiutil detach "$mount_dir"' EXIT
+          python sentinel-web/scripts/check-sidecar.py --binary "$mount_dir/Sentinel.app/Contents/MacOS/sentinel-backend"
+      - name: Verify and launch the backend from the MSI payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem packages -Filter *.msi -Recurse -File).FullName
+          $target = Join-Path $env:RUNNER_TEMP 'sentinel-installed'
+          $arguments = "/a `"$msi`" /qn TARGETDIR=`"$target`""
+          $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "MSI extraction failed with exit code $($process.ExitCode)" }
+          $backend = (Get-ChildItem $target -Filter sentinel-backend.exe -Recurse -File).FullName
+          python sentinel-web/scripts/check-sidecar.py --binary "$backend"

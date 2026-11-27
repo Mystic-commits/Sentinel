@@ -1,5 +1,6 @@
 """Exercise the frozen native backend from a directory outside the checkout."""
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -93,8 +94,13 @@ def check_backend(binary: Path, data: Path) -> None:
 
 
 if __name__ == "__main__":
-    binaries = Path(__file__).resolve().parents[1] / "src-tauri" / "binaries"
-    binary, = binaries.glob("sentinel-backend-*")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--binary", type=Path, help="Backend from the installed desktop package")
+    binary = parser.parse_args().binary
+    if binary is None:
+        binaries = Path(__file__).resolve().parents[1] / "src-tauri" / "binaries"
+        binary, = binaries.glob("sentinel-backend-*")
+    binary = binary.resolve(strict=True)
     with TemporaryDirectory(prefix="sentinel-sidecar-") as folder:
         check_backend(binary, Path(folder).resolve())
     print("Frozen backend startup, authentication, plan, apply, undo, and shutdown passed.")
