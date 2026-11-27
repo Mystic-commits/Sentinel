@@ -64,9 +64,18 @@ def check_backend(binary: Path, data: Path) -> None:
             with connect(f"ws://127.0.0.1:{port}/ws/events", origin="tauri://localhost",
                          subprotocols=["sentinel.events.v1", f"auth.{token}"], open_timeout=5) as socket:
                 assert json.loads(socket.recv(timeout=5))["event_type"] == "CONNECTION_ACK"
-                task = request("/plan", {"path": str(sample)})
+                scan = request("/scan", {"path": str(sample)})
                 while True:
-                    event = json.loads(socket.recv(timeout=10))
+                    event = json.loads(socket.recv(timeout=20))
+                    if event["event_type"] == "ERROR":
+                        raise AssertionError(event["message"])
+                    if event["event_type"] == "SCAN_COMPLETE":
+                        assert event["task_id"] == scan["scan_id"]
+                        assert event["data"]["total_files"] == 251
+                        break
+                task = request("/plan", {"path": str(sample), "use_ai": False})
+                while True:
+                    event = json.loads(socket.recv(timeout=20))
                     if event["event_type"] == "PLAN_READY":
                         break
                     if event["event_type"] == "ERROR":
@@ -103,4 +112,4 @@ if __name__ == "__main__":
     binary = binary.resolve(strict=True)
     with TemporaryDirectory(prefix="sentinel-sidecar-") as folder:
         check_backend(binary, Path(folder).resolve())
-    print("Frozen backend startup, authentication, plan, apply, undo, and shutdown passed.")
+    print("Frozen backend startup, authentication, scan, plan, apply, undo, and shutdown passed.")
