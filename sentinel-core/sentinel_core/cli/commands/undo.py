@@ -10,9 +10,13 @@ from typing import Annotated
 import typer
 from rich.text import Text
 
-from sentinel_core.api.receipts import receipt_state, undo_recorded
+from sentinel_core.api.config import settings
+from sentinel_core.api.file_jobs import run_file_job_sync
+from sentinel_core.api.mutation_jobs import MUTATION_TIMEOUT, undo_moves
+from sentinel_core.api.receipts import receipt_state
 from sentinel_core.executor import UndoManager
 from sentinel_core.memory.db import get_engine, get_session
+from sentinel_core.models.executor import ExecutionResult
 
 from ..console import console
 from ..ui.prompts import confirm
@@ -38,12 +42,23 @@ def undo_command(
                 raise ValueError("Only a completed or partially completed receipt can be undone")
             if not yes and not confirm("Restore the files from this receipt?"):
                 return
-            result = undo_recorded(task_id)
+            outcome = run_file_job_sync(
+                undo_moves,
+                task_id,
+                settings.database_url,
+                timeout=MUTATION_TIMEOUT,
+            )
+            if "error" in outcome:
+                raise ValueError(outcome["error"])
+            result = ExecutionResult.model_validate(outcome["result"])
             if result.failed_actions or result.error_message:
                 raise ValueError(result.error_message or "Undo needs attention")
             console.print(f"[success]Restored {result.successful_actions} files.[/]")
             return
-    except (OSError, ValueError, sqlite3.Error) as error:
+    except TimeoutError as error:
+        console.print("[error]Restore timed out. Check the execution receipt before retrying.[/]")
+        raise typer.Exit(1) from error
+    except (OSError, ValueError, RuntimeError, sqlite3.Error) as error:
         console.print(Text(str(error), style="error"))
         raise typer.Exit(1) from error
 

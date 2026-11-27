@@ -6,9 +6,16 @@ from typing import Annotated, Optional
 import typer
 from rich.text import Text
 
-from sentinel_core.api.receipts import record_start, run_recorded, verify_sources
+from sentinel_core.api.config import settings
+from sentinel_core.api.file_jobs import run_file_job_sync
+from sentinel_core.api.mutation_jobs import (
+    MUTATION_TIMEOUT,
+    PREFLIGHT_TIMEOUT,
+    apply_moves,
+    prepare_apply,
+)
 from sentinel_core.models.enums import ActionType
-from sentinel_core.safety import SafetyValidator
+from sentinel_core.models.executor import ExecutionResult
 
 from ..console import console, watch_status
 from ..saved_plans import load_plan
@@ -47,24 +54,39 @@ def apply_command(
         if any(item.type not in (ActionType.MOVE, ActionType.RENAME) for item in approved.actions):
             raise ValueError("The CLI preview supports moves and renames")
         show_plan(plan, selected)
-        verify_sources(approved, snapshot)
-        if not SafetyValidator().validate_plan(approved).is_safe:
-            raise ValueError("The approved actions failed folder safety validation")
+        if not dry_run and not yes and not confirm(f"Apply {len(selected)} approved changes?"):
+            console.print("[warning]Cancelled.[/]")
+            return
+        preflight = run_file_job_sync(
+            prepare_apply,
+            approved,
+            snapshot,
+            plan.scope_path,
+            settings.database_url,
+            not dry_run,
+            timeout=PREFLIGHT_TIMEOUT,
+        )
+        if "error" in preflight:
+            raise ValueError(preflight["error"])
         if dry_run:
             console.print("[info]Dry run. No files moved.[/]")
             return
-        if not yes and not confirm(f"Apply {len(selected)} approved changes?"):
-            console.print("[warning]Cancelled.[/]")
-            return
-        record_start(approved)
         with watch_status("[info]Applying approved changes…[/]"):
-            result = run_recorded(approved, snapshot)
+            result = ExecutionResult.model_validate(
+                run_file_job_sync(
+                    apply_moves,
+                    approved,
+                    snapshot,
+                    settings.database_url,
+                    timeout=MUTATION_TIMEOUT,
+                )
+            )
         if result.failed_actions or result.error_message:
             raise ValueError(result.error_message or "One or more changes failed")
-    except sqlite3.IntegrityError as error:
-        console.print("[error]This task already has an execution receipt.[/]")
+    except TimeoutError as error:
+        console.print("[error]Apply timed out. Check the execution receipt before retrying.[/]")
         raise typer.Exit(1) from error
-    except (ValueError, OSError, sqlite3.Error) as error:
+    except (ValueError, OSError, RuntimeError, sqlite3.Error) as error:
         console.print(Text(str(error), style="error"))
         raise typer.Exit(1) from error
     console.print(f"[success]Applied {result.successful_actions} changes.[/]")
