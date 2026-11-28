@@ -2,11 +2,17 @@
 
 import asyncio
 import json
+import os
+import subprocess
+import sys
 from collections.abc import Callable
+from contextlib import suppress
 from multiprocessing import get_context
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import monotonic
+
+from sentinel_core.models.planner import PlanSchema
 
 from .limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS
 
@@ -24,30 +30,80 @@ def _write_result(job: Callable, args: tuple, result_path: Path, ready: Path) ->
     result_path.write_text(json.dumps(report), encoding="utf-8")
 
 
+def _read_worker_report(result_path: Path, ready: Path, wait, poll, timeout: float) -> dict:
+    startup_deadline = monotonic() + WORKER_STARTUP_TIMEOUT
+    while not ready.exists() and poll() is None:
+        remaining = startup_deadline - monotonic()
+        if remaining <= 0:
+            raise TimeoutError("The folder worker timed out during startup.")
+        wait(min(remaining, 0.05))
+    wait(timeout)
+    exit_code = poll()
+    if exit_code is None:
+        raise TimeoutError("The folder job timed out. Check that the folder is available.")
+    if exit_code != 0:
+        raise RuntimeError("The folder worker stopped before it could finish.")
+    report = json.loads(result_path.read_text(encoding="utf-8"))
+    if "error" in report:
+        raise RuntimeError(report["error"])
+    return report["result"]
+
+
+def run_packaged_worker(request: Path) -> None:
+    from .mutation_jobs import apply_moves, prepare_apply, undo_moves
+
+    jobs = {
+        job.__name__: job
+        for job in (scan_folder, plan_folder, prepare_apply, apply_moves, undo_moves)
+    }
+    data = json.loads(request.read_text(encoding="utf-8"))
+    job = jobs[data["job"]]
+    args = data["args"]
+    if job in (prepare_apply, apply_moves):
+        args[0] = PlanSchema.model_validate(args[0])
+        args[1] = {path: tuple(identity) for path, identity in args[1].items()}
+    _write_result(job, tuple(args), request.with_name("result.json"), request.with_name("ready"))
+
+
+def _run_packaged_process(job, args, result_path, ready, timeout):
+    request = result_path.with_name("request.json")
+    values = [
+        value.model_dump(mode="json") if isinstance(value, PlanSchema) else value for value in args
+    ]
+    request.write_text(json.dumps({"job": job.__name__, "args": values}), encoding="utf-8")
+    worker = subprocess.Popen(
+        [sys.executable, "--file-worker", str(request)],
+        stdin=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+
+    def wait(delay):
+        with suppress(subprocess.TimeoutExpired):
+            worker.wait(timeout=delay)
+
+    try:
+        return _read_worker_report(result_path, ready, wait, worker.poll, timeout)
+    finally:
+        if worker.poll() is None:
+            worker.kill()
+            wait(1)
+
+
 def run_file_job_sync(job: Callable, *args, timeout: float = SCAN_WORKER_TIMEOUT) -> dict:
     with TemporaryDirectory(prefix="sentinel-job-") as folder:
         result_path = Path(folder) / "result.json"
         ready = Path(folder) / "ready"
+        if getattr(sys, "frozen", False):
+            return _run_packaged_process(job, args, result_path, ready, timeout)
+
         worker = get_context("spawn").Process(
             target=_write_result, args=(job, args, result_path, ready), daemon=True
         )
         worker.start()
         try:
-            startup_deadline = monotonic() + WORKER_STARTUP_TIMEOUT
-            while not ready.exists() and worker.is_alive():
-                remaining = startup_deadline - monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("The folder worker timed out during startup.")
-                worker.join(min(remaining, 0.05))
-            worker.join(timeout)
-            if worker.is_alive():
-                raise TimeoutError("The folder job timed out. Check that the folder is available.")
-            if worker.exitcode != 0:
-                raise RuntimeError("The folder worker stopped before it could finish.")
-            report = json.loads(result_path.read_text(encoding="utf-8"))
-            if "error" in report:
-                raise RuntimeError(report["error"])
-            return report["result"]
+            return _read_worker_report(
+                result_path, ready, worker.join, lambda: worker.exitcode, timeout
+            )
         finally:
             if worker.is_alive():
                 worker.kill()

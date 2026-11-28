@@ -77,3 +77,25 @@ def test_timed_out_worker_releases_job_slot(tmp_path):
         assert result["truncated"] is False
 
     asyncio.run(scenario())
+
+
+def test_desktop_worker_entrypoint_runs_a_scan(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    folder = tmp_path / "fixture"
+    folder.mkdir()
+    (folder / "note.txt").touch()
+    request = tmp_path / "request.json"
+    request.write_text(
+        json.dumps({"job": "scan_folder", "args": [str(folder), 3]}), encoding="utf-8"
+    )
+    subprocess.run(
+        [sys.executable, "-m", "sentinel_core.desktop_backend", "--file-worker", str(request)],
+        check=True,
+        timeout=15,
+    )
+    assert (tmp_path / "ready").exists()
+    result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
+    assert result["result"]["total_files"] == 1

@@ -3,6 +3,7 @@
 import socket
 import sys
 from multiprocessing import freeze_support
+from pathlib import Path
 from threading import Thread
 
 
@@ -37,4 +38,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     freeze_support()
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--file-worker":
+        from sentinel_core.api.file_jobs import run_packaged_worker
+
+        run_packaged_worker(Path(sys.argv[2]))
+    else:
+        main()
