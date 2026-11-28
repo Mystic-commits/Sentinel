@@ -8,6 +8,7 @@ from pathlib import Path
 from stat import FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT
 
 _FILE_SHARE_READ_WRITE = 0x03
+_FILE_LIST_DIRECTORY = 0x01
 _FILE_READ_ATTRIBUTES = 0x80
 _OPEN_EXISTING = 3
 _BACKUP_SEMANTICS = 0x02000000
@@ -57,10 +58,10 @@ def hold_parent(parent: Path, stack: ExitStack, *, create_below: Path | None = N
         ):
             with suppress(FileExistsError):
                 directory.mkdir()
-        # Omit FILE_SHARE_DELETE so the open directory cannot be renamed or removed.
+        # List-directory access participates in share checks. Omit FILE_SHARE_DELETE.
         handle = api.CreateFileW(
             str(directory),
-            _FILE_READ_ATTRIBUTES,
+            _FILE_LIST_DIRECTORY | _FILE_READ_ATTRIBUTES,
             _FILE_SHARE_READ_WRITE,
             None,
             _OPEN_EXISTING,
