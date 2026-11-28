@@ -6,16 +6,17 @@ from collections.abc import Callable
 from multiprocessing import get_context
 from pathlib import Path
 from tempfile import TemporaryDirectory
-
-from sentinel_core.scanner.scanner import Scanner
+from time import monotonic
 
 from .limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS
 
 SCAN_WORKER_TIMEOUT = 25
 AI_WORKER_TIMEOUT = 90
+WORKER_STARTUP_TIMEOUT = 45
 
 
-def _write_result(job: Callable, args: tuple, result_path: Path) -> None:
+def _write_result(job: Callable, args: tuple, result_path: Path, ready: Path) -> None:
+    ready.touch()
     try:
         report = {"result": job(*args)}
     except Exception as error:
@@ -26,11 +27,18 @@ def _write_result(job: Callable, args: tuple, result_path: Path) -> None:
 def run_file_job_sync(job: Callable, *args, timeout: float = SCAN_WORKER_TIMEOUT) -> dict:
     with TemporaryDirectory(prefix="sentinel-job-") as folder:
         result_path = Path(folder) / "result.json"
+        ready = Path(folder) / "ready"
         worker = get_context("spawn").Process(
-            target=_write_result, args=(job, args, result_path), daemon=True
+            target=_write_result, args=(job, args, result_path, ready), daemon=True
         )
         worker.start()
         try:
+            startup_deadline = monotonic() + WORKER_STARTUP_TIMEOUT
+            while not ready.exists() and worker.is_alive():
+                remaining = startup_deadline - monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("The folder worker timed out during startup.")
+                worker.join(min(remaining, 0.05))
             worker.join(timeout)
             if worker.is_alive():
                 raise TimeoutError("The folder job timed out. Check that the folder is available.")
@@ -63,6 +71,8 @@ def _resolve_folder(path: str) -> Path:
 
 
 def scan_folder(path: str, max_depth: int) -> dict:
+    from sentinel_core.scanner.scanner import Scanner
+
     root = _resolve_folder(path)
     scan = Scanner(
         str(root),

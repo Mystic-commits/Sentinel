@@ -4,9 +4,9 @@ import json
 import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
-from stat import FILE_ATTRIBUTE_REPARSE_POINT, S_ISDIR, S_ISREG
+from stat import FILE_ATTRIBUTE_REPARSE_POINT, S_ISDIR
 
-from sentinel_core.executor.executor import execute_plan
+from sentinel_core.executor.rename import file_fingerprint, rename_scoped
 from sentinel_core.models.enums import ActionType
 from sentinel_core.models.executor import ExecutionResult
 from sentinel_core.models.planner import PlanAction, PlanSchema
@@ -29,10 +29,12 @@ def database_path() -> Path:
 
 
 @contextmanager
-def writer():
+def writer(*, wait_seconds: float = 0):
     # Keep the lock in a separate database so receipts can commit between moves.
     path = database_path()
-    with closing(sqlite3.connect(path.with_name(f"{path.name}.writer"), timeout=0)) as connection:
+    with closing(
+        sqlite3.connect(path.with_name(f"{path.name}.writer"), timeout=wait_seconds)
+    ) as connection:
         try:
             connection.execute("BEGIN IMMEDIATE")
         except sqlite3.OperationalError as error:
@@ -71,10 +73,7 @@ def database():
 
 
 def identity(path: str) -> tuple[int, ...]:
-    info = Path(path).lstat()
-    if not S_ISREG(info.st_mode):
-        raise ValueError("Expected a regular file")
-    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+    return file_fingerprint(Path(path).lstat())
 
 
 def snapshot_sources(plan: PlanSchema) -> dict[str, tuple[int, ...]]:
@@ -184,9 +183,12 @@ def _recorded_moves(plan, operations, *, undo: bool = False) -> ExecutionResult:
                     (plan.task_id, index),
                 )
             _check_move(plan, action, expected)
-            result = execute_plan(_single_move(plan, action))
-            if result.failed_actions or result.error_message:
-                raise ValueError(result.error_message or "File operation did not complete")
+            rename_scoped(
+                Path(plan.scope_path),
+                Path(action.source_path),
+                Path(action.destination_path),
+                expected,
+            )
             _check_directory_chain(Path(plan.scope_path), Path(action.destination_path))
             moved = identity(action.destination_path)
             # Rename can change ctime. The device, inode, size and mtime should match.
@@ -221,7 +223,7 @@ def _recorded_moves(plan, operations, *, undo: bool = False) -> ExecutionResult:
 
 def run_recorded(plan: PlanSchema, expected: dict[str, tuple[int, ...]]) -> ExecutionResult:
     try:
-        with writer():
+        with writer(wait_seconds=1):
             _reconcile_interrupted()
             _set_state(plan.task_id, "executing")
             verify_sources(plan, expected)
@@ -298,7 +300,7 @@ def receipt_state(task_id: str) -> str | None:
 
 
 def undo_recorded(task_id: str) -> ExecutionResult:
-    with writer(), database() as connection:
+    with writer(wait_seconds=1), database() as connection:
         _reconcile_interrupted()
         row = connection.execute(
             "SELECT state, plan, identities FROM api_receipts WHERE task_id = ?", (task_id,)

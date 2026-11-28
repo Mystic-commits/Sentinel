@@ -45,7 +45,7 @@ def check_backend(binary: Path, data: Path) -> None:
 
             def request(endpoint, payload=None):
                 body = json.dumps(payload).encode() if payload is not None else None
-                with urlopen(Request(base + endpoint, data=body, headers=headers), timeout=10) as response:
+                with urlopen(Request(base + endpoint, data=body, headers=headers), timeout=75) as response:
                     return json.load(response)
 
             try:
@@ -66,7 +66,7 @@ def check_backend(binary: Path, data: Path) -> None:
                 assert json.loads(socket.recv(timeout=5))["event_type"] == "CONNECTION_ACK"
                 scan = request("/scan", {"path": str(sample)})
                 while True:
-                    event = json.loads(socket.recv(timeout=20))
+                    event = json.loads(socket.recv(timeout=75))
                     if event["event_type"] == "ERROR":
                         raise AssertionError(event["message"])
                     if event["event_type"] == "SCAN_COMPLETE":
@@ -75,7 +75,7 @@ def check_backend(binary: Path, data: Path) -> None:
                         break
                 task = request("/plan", {"path": str(sample), "use_ai": False})
                 while True:
-                    event = json.loads(socket.recv(timeout=20))
+                    event = json.loads(socket.recv(timeout=75))
                     if event["event_type"] == "PLAN_READY":
                         break
                     if event["event_type"] == "ERROR":
@@ -98,8 +98,12 @@ def check_backend(binary: Path, data: Path) -> None:
             assert child.wait(timeout=10) == 0
         finally:
             if child.poll() is None:
-                child.terminate()
-                child.wait(timeout=10)
+                child.stdin.close()
+                try:
+                    child.wait(timeout=50)
+                except subprocess.TimeoutExpired:
+                    child.terminate()
+                    child.wait(timeout=10)
 
 
 if __name__ == "__main__":

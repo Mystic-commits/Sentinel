@@ -5,13 +5,13 @@ import sys
 from multiprocessing import freeze_support
 from threading import Thread
 
-import uvicorn
-
-from sentinel_core.api.config import settings
-from sentinel_core.api.main import app
-
 
 def main() -> None:
+    import uvicorn
+
+    from sentinel_core.api.config import settings
+    from sentinel_core.api.main import app
+
     if settings.access_token is None:
         raise SystemExit("Desktop backend requires a session token")
 

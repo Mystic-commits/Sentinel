@@ -5,6 +5,7 @@ import pytest
 
 from sentinel_core.api import receipts
 from sentinel_core.api.config import settings
+from sentinel_core.executor.executor import execute_plan
 from sentinel_core.models.enums import ActionType
 from sentinel_core.models.planner import PlanAction, PlanSchema
 
@@ -31,15 +32,14 @@ def batch(tmp_path, monkeypatch):
 
 
 def test_interruption_keeps_committed_progress_and_marks_uncertain_action(batch, monkeypatch):
-    real_execute = receipts.execute_plan
+    real_execute = receipts.rename_scoped
 
-    def interrupted(plan):
-        result = real_execute(plan)
-        if plan.actions[0] == batch.actions[1]:
+    def interrupted(root, source, destination, expected):
+        real_execute(root, source, destination, expected)
+        if source == Path(batch.actions[1].source_path):
             raise KeyboardInterrupt
-        return result
 
-    monkeypatch.setattr(receipts, "execute_plan", interrupted)
+    monkeypatch.setattr(receipts, "rename_scoped", interrupted)
     receipts.record_start(batch)
     with pytest.raises(KeyboardInterrupt):
         receipts.run_recorded(batch, receipts.snapshot_sources(batch))
@@ -58,16 +58,15 @@ def test_interruption_keeps_committed_progress_and_marks_uncertain_action(batch,
 
 
 def test_partial_failure_can_restore_only_confirmed_moves(batch, monkeypatch):
-    real_execute = receipts.execute_plan
+    real_execute = receipts.rename_scoped
     second = batch.actions[1]
 
-    def conflict_after_first(plan):
-        result = real_execute(plan)
-        if plan.actions[0] == batch.actions[0]:
+    def conflict_after_first(root, source, destination, expected):
+        real_execute(root, source, destination, expected)
+        if source == Path(batch.actions[0].source_path):
             Path(second.destination_path).write_text("someone else's file")
-        return result
 
-    monkeypatch.setattr(receipts, "execute_plan", conflict_after_first)
+    monkeypatch.setattr(receipts, "rename_scoped", conflict_after_first)
     receipts.record_start(batch)
     result = receipts.run_recorded(batch, receipts.snapshot_sources(batch))
     assert (result.successful_actions, result.failed_actions) == (1, 1)
@@ -93,7 +92,7 @@ def test_active_writer_is_not_reconciled_and_second_writer_is_rejected(batch):
 
 
 def test_receipt_written_before_journaling_can_still_be_undone(batch):
-    assert receipts.execute_plan(batch).successful_actions == 2
+    assert execute_plan(batch).successful_actions == 2
     legacy_identities = [receipts.identity(action.destination_path) for action in batch.actions]
     with receipts.database() as connection:
         connection.execute(
@@ -108,15 +107,14 @@ def test_receipt_written_before_journaling_can_still_be_undone(batch):
 def test_interrupted_undo_preserves_per_file_restore_evidence(batch, monkeypatch):
     receipts.record_start(batch)
     assert receipts.run_recorded(batch, receipts.snapshot_sources(batch)).successful_actions == 2
-    real_execute = receipts.execute_plan
+    real_execute = receipts.rename_scoped
 
-    def interrupted(plan):
-        result = real_execute(plan)
-        if plan.actions[0].destination_path == batch.actions[0].source_path:
+    def interrupted(root, source, destination, expected):
+        real_execute(root, source, destination, expected)
+        if destination == Path(batch.actions[0].source_path):
             raise KeyboardInterrupt
-        return result
 
-    monkeypatch.setattr(receipts, "execute_plan", interrupted)
+    monkeypatch.setattr(receipts, "rename_scoped", interrupted)
     with pytest.raises(KeyboardInterrupt):
         receipts.undo_recorded(batch.task_id)
     summary = receipts.history()[0]
@@ -129,16 +127,14 @@ def test_interrupted_undo_preserves_per_file_restore_evidence(batch, monkeypatch
 
 def test_receipt_never_confirms_a_replaced_destination(batch, monkeypatch):
     action = batch.actions[0]
-    real_execute = receipts.execute_plan
+    real_execute = receipts.rename_scoped
 
-    def replace_destination(plan):
-        result = real_execute(plan)
-        destination = Path(action.destination_path)
+    def replace_destination(root, source, destination, expected):
+        real_execute(root, source, destination, expected)
         destination.rename(destination.with_suffix(".moved"))
         destination.write_text("unrelated replacement")
-        return result
 
-    monkeypatch.setattr(receipts, "execute_plan", replace_destination)
+    monkeypatch.setattr(receipts, "rename_scoped", replace_destination)
     receipts.record_start(batch)
     result = receipts.run_recorded(batch, receipts.snapshot_sources(batch))
     assert result.successful_actions == 0
@@ -199,3 +195,26 @@ def test_terminated_apply_keeps_receipt_and_releases_writer(batch):
     assert (first["apply_state"], second["apply_state"]) == ("started", "pending")
     with receipts.writer():
         assert all(Path(action.source_path).exists() for action in batch.actions)
+
+
+def test_apply_waits_for_short_history_lock(batch):
+    from threading import Event, Thread
+
+    receipts.record_start(batch)
+    expected = receipts.snapshot_sources(batch)
+    locked = Event()
+
+    def history_reader():
+        from time import sleep
+
+        with receipts.writer():
+            locked.set()
+            sleep(0.15)
+
+    thread = Thread(target=history_reader)
+    thread.start()
+    try:
+        assert locked.wait(2)
+        assert receipts.run_recorded(batch, expected).successful_actions == 2
+    finally:
+        thread.join()
