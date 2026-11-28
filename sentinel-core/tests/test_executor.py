@@ -4,6 +4,7 @@ Tests for the Executor Module
 Tests file operations, dry-run mode, and undo functionality.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -309,3 +310,43 @@ def test_move_preserves_destination_created_after_preflight(tmp_path, monkeypatc
         assert list(destination.iterdir()) == []
     else:
         assert destination.read_text() == "destination"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory descriptors")
+def test_scoped_rename_uses_open_parent_directories(tmp_path, monkeypatch):
+    from sentinel_core.executor import rename
+
+    root = tmp_path.resolve()
+    source = root / "source" / "note.txt"
+    source.parent.mkdir()
+    source.write_text("fixture")
+    destination = root / "sorted" / source.name
+    native = rename._rename_at
+    seen = []
+
+    def observe(source_name, destination_name, source_fd, destination_fd):
+        assert os.path.samestat(os.fstat(source_fd), source.parent.stat())
+        assert os.path.samestat(os.fstat(destination_fd), destination.parent.stat())
+        seen.append((source_name, destination_name))
+        native(source_name, destination_name, source_fd, destination_fd)
+
+    monkeypatch.setattr(rename, "_rename_at", observe)
+    rename.rename_scoped(root, source, destination, rename.file_fingerprint(source.lstat()))
+    assert seen == [("note.txt", "note.txt")]
+    assert destination.read_text() == "fixture"
+    assert not source.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows directory handles")
+def test_windows_holds_parent_until_move_finishes(tmp_path):
+    from contextlib import ExitStack
+
+    from sentinel_core.executor.windows_directories import hold_parent
+
+    parent = tmp_path.resolve() / "folder"
+    parent.mkdir()
+    with ExitStack() as handles:
+        hold_parent(parent, handles)
+        with pytest.raises(PermissionError):
+            parent.rename(parent.with_name("moved"))
+    assert parent.rename(parent.with_name("moved")).is_dir()
