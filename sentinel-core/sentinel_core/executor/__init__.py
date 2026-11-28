@@ -1,8 +1,8 @@
 """Executor module for Sentinel."""
 
-from .executor import execute_plan
-from .undo import UndoManager
-from .log_writer import LogWriter
 from .class_wrapper import Executor
+from .executor import execute_plan
+from .log_writer import LogWriter
+from .undo import UndoManager
 
-__all__ = ["execute_plan", "UndoManager", "LogWriter", "Executor"]
+__all__ = ["Executor", "LogWriter", "UndoManager", "execute_plan"]

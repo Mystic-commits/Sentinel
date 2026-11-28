@@ -1,35 +1,40 @@
+import type { TaskState } from '@/lib/types/task';
+import { getAccessToken, getApiUrl } from './access';
+
 /**
  * API Client
  * 
  * HTTP client for Sentinel API endpoints.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+export class APIError extends Error {
+    constructor(readonly status: number, message: string) { super(message); }
+}
 
 class APIClient {
-    private baseURL: string;
-
-    constructor(baseURL: string) {
-        this.baseURL = baseURL;
-    }
-
     private async request<T>(
         endpoint: string,
         options: RequestInit = {}
     ): Promise<T> {
-        const url = `${this.baseURL}${endpoint}`;
+        const url = `${getApiUrl()}${endpoint}`;
 
         const response = await fetch(url, {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                Authorization: `Bearer ${getAccessToken()}`,
                 ...options.headers,
             },
         });
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(error.detail || `HTTP ${response.status}`);
+            const detail = typeof error.detail === 'string' ? error.detail : error.detail?.[0]?.msg || `HTTP ${response.status}`;
+            const retryAfter = response.headers.get('Retry-After');
+            if (response.status === 429 && retryAfter && /^\d+$/.test(retryAfter)) {
+                throw new Error(`${detail}. Try again in ${retryAfter}s.`);
+            }
+            throw new APIError(response.status, detail);
         }
 
         return response.json();
@@ -44,40 +49,28 @@ class APIClient {
     }
 
     // Create plan
-    async createPlan(scanId: string | null, mode: string, userPrompt?: string, path?: string) {
-        return this.request('/plan', {
+    async createPlan(path: string, useAi: boolean, userPrompt?: string) {
+        return this.request<{ task_id: string }>('/plan', {
             method: 'POST',
-            body: JSON.stringify({
-                scan_id: scanId,
-                mode,
-                user_prompt: userPrompt,
-                path: path,
-            }),
+            body: JSON.stringify({ path, use_ai: useAi, user_prompt: userPrompt }),
         });
     }
 
     // Preview plan
-    async previewPlan(planId: string) {
+    async previewPlan(taskId: string) {
         return this.request('/preview', {
             method: 'POST',
-            body: JSON.stringify({ plan_id: planId }),
-        });
-    }
-
-    // Approve plan
-    async approvePlan(taskId: string) {
-        return this.request(`/plan/${taskId}/approve-all`, {
-            method: 'POST',
+            body: JSON.stringify({ task_id: taskId }),
         });
     }
 
     // Execute task
-    async executeTask(taskId: string) {
+    async executeTask(taskId: string, approvedActionIndices: number[]) {
         return this.request('/execute', {
             method: 'POST',
             body: JSON.stringify({
                 task_id: taskId,
-                skip_safety: false, // Always false
+                approved_action_indices: approvedActionIndices,
             }),
         });
     }
@@ -89,12 +82,34 @@ class APIClient {
 
     // Get task by ID
     async getTask(id: string) {
-        return this.request(`/tasks/${id}`);
+        return this.request<{ state: TaskState; plan: Record<string, unknown> | null; planning_source: string | null; summary: string }>(`/tasks/${encodeURIComponent(id)}`);
+    }
+
+    async history() {
+        return this.request<{
+            task_id: string;
+            state: string;
+            created_at: string;
+            operation_count: number;
+            applied_count: number;
+            restored_count: number;
+            uncertain_count: number;
+        }[]>('/history');
+    }
+
+    async receiptDetails(taskId: string) {
+        return this.request<{
+            index: number;
+            source: string;
+            destination: string;
+            apply_state: 'pending' | 'started' | 'done';
+            undo_state: 'pending' | 'started' | 'done';
+        }[]>(`/history/${encodeURIComponent(taskId)}`);
     }
 
     // Undo task
     async undoTask(taskId: string) {
-        return this.request('/undo', {
+        return this.request<{ message: string }>('/undo', {
             method: 'POST',
             body: JSON.stringify({ task_id: taskId }),
         });
@@ -106,4 +121,4 @@ class APIClient {
     }
 }
 
-export const api = new APIClient(API_URL);
+export const api = new APIClient();

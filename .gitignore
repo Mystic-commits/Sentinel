@@ -52,3 +52,9 @@ secrets.json
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Next.js generated type declarations
+/sentinel-web/next-env.d.ts
+
+/sentinel-web/src-tauri/binaries/
+/sentinel-web/src-tauri/gen/

@@ -1,0 +1,97 @@
+name: Desktop preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/desktop.yml'
+      - 'sentinel-core/**'
+      - 'sentinel-web/**'
+
+concurrency:
+  group: desktop-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            bundles: app,dmg
+          - runner: windows-2025
+            bundles: msi
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: sentinel-web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked backend and packager
+        working-directory: sentinel-core
+        run: |
+          python -m pip install poetry==2.3.4
+          poetry install --with desktop
+      - name: Install locked frontend
+        working-directory: sentinel-web
+        run: npm ci
+      - name: Build native desktop preview
+        working-directory: sentinel-web
+        run: npm run tauri:build -- --bundles ${{ matrix.bundles }} -- --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-desktop-preview-${{ matrix.runner }}
+          path: |
+            sentinel-web/src-tauri/target/release/bundle/dmg/*.dmg
+            sentinel-web/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  package-smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: sentinel-web/scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: sentinel-desktop-preview-${{ matrix.runner }}
+          path: packages
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install WebSocket client for the test driver
+        run: python -m pip install websockets==16.1.1
+      - name: Verify and launch the backend from the mounted DMG
+        if: runner.os == 'macOS'
+        run: |
+          image=$(find packages -name '*.dmg' -type f)
+          mount_dir=$(mktemp -d)
+          hdiutil verify "$image"
+          hdiutil attach "$image" -readonly -nobrowse -mountpoint "$mount_dir"
+          trap 'hdiutil detach "$mount_dir"' EXIT
+          python sentinel-web/scripts/check-sidecar.py --binary "$mount_dir/Sentinel.app/Contents/MacOS/sentinel-backend"
+      - name: Verify and launch the backend from the MSI payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem packages -Filter *.msi -Recurse -File).FullName
+          $target = Join-Path $env:RUNNER_TEMP 'sentinel-installed'
+          $arguments = "/a `"$msi`" /qn TARGETDIR=`"$target`""
+          $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "MSI extraction failed with exit code $($process.ExitCode)" }
+          $backend = (Get-ChildItem $target -Filter sentinel-backend.exe -Recurse -File).FullName
+          python sentinel-web/scripts/check-sidecar.py --binary "$backend"

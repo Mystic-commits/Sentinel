@@ -1,0 +1,41 @@
+.workspace {
+    --workspace-paper: #f9f8f4;
+    --workspace-ink: #141721;
+    --workspace-secondary: #54596a;
+    --workspace-line: #deded8;
+    --workspace-blue: #263bc0;
+    min-height: 100dvh;
+    background: var(--workspace-paper);
+    color: var(--workspace-ink);
+    font-family: 'Manrope Variable', sans-serif;
+}
+.workspace :focus-visible { outline: 2px solid var(--workspace-blue); outline-offset: 3px; }
+.workspace .font-mono { font-family: 'IBM Plex Mono', monospace; }
+.workspace .border-edge { border-color: var(--workspace-line); }
+.workspace .text-txt-primary { color: var(--workspace-ink); }
+.workspace .text-txt-secondary, .workspace .text-txt-muted, .workspace .text-txt-faint { color: var(--workspace-secondary); }
+.workspace .bg-surface-1 { background: #fff; }
+.workspace .bg-surface-2 { background: #eef0f8; }
+.workspace-action {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 40px; border-radius: 8px; padding: 8px 14px;
+    background: var(--workspace-blue); color: #fff; font-size: 14px; font-weight: 750;
+}
+.workspace-action:hover:not(:disabled) { background: #192a9c; }
+.workspace-action:disabled { background: #e5e8f3; color: #565d74; }
+.workspace-secondary {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 40px;
+    padding: 8px 12px; border: 1px solid var(--workspace-line); border-radius: 8px;
+    font-size: 14px; font-weight: 700; background: #fff;
+}
+.workspace-secondary:hover:not(:disabled) { background: #eef0f8; }
+.workspace-secondary:disabled { color: var(--workspace-secondary); }
+.workspace-input { border: 1px solid #c9cddc; border-radius: 8px; background: #fff; }
+.workspace-panel { background: #fff; border: 1px solid var(--workspace-line); border-radius: 14px; }
+.workspace-tab[aria-pressed=true] { color: var(--workspace-blue); box-shadow: inset 0 -2px var(--workspace-blue); }
+
+.workspace-decision { gap: 5px; min-width: 40px; padding: 8px; border: 0; background: #f3f4f8; font-size: 12px; }
+.workspace-decision[aria-pressed=true] { color: #263bc0; background: #dce2ff; }
+
+.workspace-bulk { border: 0; }
+.workspace-bulk:disabled { color: #737788; }

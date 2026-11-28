@@ -1,5 +1,6 @@
 'use client';
 
+import ExecutionHistory from '@/components/dashboard/ExecutionHistory';
 import Sidebar from '@/components/dashboard/Sidebar';
 import TaskComposer from '@/components/dashboard/TaskComposer';
 import Timeline from '@/components/dashboard/Timeline';
@@ -10,39 +11,27 @@ export default function DashboardPage() {
     const activeTask = useActiveTask();
 
     return (
-        <div className="flex h-screen bg-surface-0 overflow-hidden">
+        <div className="min-h-dvh lg:grid lg:grid-cols-[245px_minmax(0,1fr)]">
             <Sidebar />
-
-            {/* Main content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="border-b border-edge">
-                    <TaskComposer />
-                </div>
-
-                <div className="flex-1 overflow-y-auto">
-                    {activeTask ? (
-                        <div className="max-w-3xl mx-auto px-8">
-                            <Timeline
-                                currentState={activeTask.state}
-                                progress={activeTask.progress}
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center h-full">
-                            <div className="text-center space-y-2">
-                                <p className="text-[15px] text-txt-muted">
-                                    No active task
-                                </p>
-                                <p className="text-[13px] text-txt-faint">
-                                    Describe what you want to organize above
-                                </p>
-                            </div>
-                        </div>
+            <main className="min-w-0">
+                <div className="mx-auto max-w-6xl px-4 pb-10 sm:px-8">
+                    <header className="flex items-center justify-between gap-3 py-5 sm:py-7">
+                        <h1 className="text-3xl font-extrabold tracking-[-0.055em]">File workspace</h1>
+                    </header>
+                    <details open={activeTask?.state !== 'review'} className="mb-2">
+                        <summary className="mb-2 cursor-pointer text-sm font-bold">Scan a folder</summary>
+                        <TaskComposer />
+                    </details>
+                    <div className="mb-5"><ExecutionHistory /></div>
+                    {activeTask && (
+                        <details className="mb-4 text-sm text-txt-secondary">
+                            <summary className="cursor-pointer">Task progress</summary>
+                            <Timeline currentState={activeTask.state} progress={activeTask.progress} />
+                        </details>
                     )}
+                    <RightPanel />
                 </div>
-            </div>
-
-            <RightPanel />
+            </main>
         </div>
     );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { ArrowRight, FileText } from 'lucide-react';
 import ActionToggle from './ActionToggle';
 
 export type OperationStatus = 'pending' | 'approved' | 'rejected';
@@ -17,64 +17,40 @@ export interface FileOperation {
 
 interface ActionItemProps {
     operation: FileOperation;
+    locked: boolean;
     onApprove: (id: string) => void;
     onReject: (id: string) => void;
 }
 
-export default function ActionItem({ operation, onApprove, onReject }: ActionItemProps) {
-    const [expanded, setExpanded] = useState(false);
-
-    const statusBorder =
-        operation.status === 'approved' ? 'border-l-emerald-400' :
-            operation.status === 'rejected' ? 'border-l-red-400' :
-                'border-l-transparent';
+export default function ActionItem({ operation, locked, onApprove, onReject }: ActionItemProps) {
+    const name = operation.source.split(/[/\\]/).filter(Boolean).at(-1) ?? operation.source;
+    const destination = operation.destination?.split(/[/\\]/).filter(Boolean).slice(-2).join('/');
+    const decision = { pending: 'Pending', approved: 'Approved', rejected: 'Keep in place' }[operation.status];
 
     return (
-        <div className={`border-l-2 ${statusBorder} pl-3 py-2 transition-colors`}>
-            <div className="flex items-start gap-2.5">
-                <ActionToggle
-                    status={operation.status}
-                    onApprove={() => onApprove(operation.id)}
-                    onReject={() => onReject(operation.id)}
-                />
-
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider">
-                            {operation.type}
-                        </span>
-                        {operation.type === 'delete' && (
-                            <span className="text-[10px] text-red-400/60 font-medium px-1.5 py-0.5 rounded bg-red-500/5">
-                                destructive
-                            </span>
-                        )}
+        <article className="border-b border-edge px-3 py-4 last:border-b-0 sm:px-5">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="rounded-lg bg-[#eef0fa] p-2 text-[#263bc0]"><FileText size={17} aria-hidden /></div>
+                    <div className="min-w-0">
+                        <p className="break-all text-sm font-extrabold">{name}</p>
+                        <p className="mt-0.5 text-xs text-txt-secondary">{decision}</p>
                     </div>
-
-                    <p className="font-mono text-[12px] text-txt-secondary break-all leading-relaxed">
-                        {operation.source}
-                    </p>
-                    {operation.destination && (
-                        <p className="font-mono text-[12px] text-txt-muted break-all leading-relaxed">
-                            <span className="text-txt-faint">→ </span>
-                            {operation.destination}
-                        </p>
-                    )}
-
-                    {operation.reason && (
-                        <button
-                            onClick={() => setExpanded(!expanded)}
-                            className="text-[11px] text-txt-faint hover:text-txt-muted mt-1.5 transition-colors"
-                        >
-                            {expanded ? '− hide reason' : '+ reason'}
-                        </button>
-                    )}
-                    {expanded && operation.reason && (
-                        <p className="text-[12px] text-txt-muted mt-1 leading-relaxed bg-surface-2 rounded px-2 py-1.5">
-                            {operation.reason}
-                        </p>
-                    )}
                 </div>
+                <ActionToggle disabled={locked} name={name} status={operation.status}
+                    onApprove={() => onApprove(operation.id)} onReject={() => onReject(operation.id)} />
             </div>
-        </div>
+            {destination && (
+                <p className="mt-2 flex items-center gap-2 break-all font-mono text-xs text-[#263bc0]">
+                    <ArrowRight size={14} className="shrink-0" aria-hidden /> {destination}
+                </p>
+            )}
+            <details className="mt-2 text-xs text-txt-secondary">
+                <summary className="cursor-pointer font-bold">File details</summary>
+                <p className="mt-2 break-all font-mono">From {operation.source}</p>
+                {operation.destination && <p className="mt-1 break-all font-mono">To {operation.destination}</p>}
+                {operation.reason && <p className="mt-2">{operation.reason}</p>}
+            </details>
+        </article>
     );
 }

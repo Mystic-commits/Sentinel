@@ -1,19 +1,21 @@
 from pathlib import Path
-from typing import List, Optional
-from sentinel_core.models.planner import PlanSchema, PlanAction
+
 from sentinel_core.models.enums import ActionType
+from sentinel_core.models.planner import PlanAction, PlanSchema
 from sentinel_core.safety.constants import PROTECTED_PATHS
 
+
 class SafetyValidationResult:
-    def __init__(self, is_safe: bool, issues: List[str]):
+    def __init__(self, is_safe: bool, issues: list[str]):
         self.issues = issues
-        self.errors = [issue for issue in issues if "Cannot" in issue or "does not exist" in issue]
-        self.warnings = [issue for issue in issues if issue not in self.errors]
+        self.errors = issues
+        self.warnings = []
         # is_safe should be based on errors, not all issues (warnings OK)
-        self.is_safe = len(self.errors) == 0
+        self.is_safe = is_safe and not self.errors
 
     def __repr__(self):
         return f"SafetyValidationResult(is_safe={self.is_safe}, errors={self.errors}, warnings={self.warnings})"
+
 
 class SafetyValidator:
     def validate_plan(self, plan: PlanSchema) -> SafetyValidationResult:
@@ -22,17 +24,17 @@ class SafetyValidator:
         """
         issues = []
         scope_root = Path(plan.scope_path).resolve()
-        
+
         # 1. Scope Root Validation
         if not scope_root.exists():
             issues.append(f"Scope root does not exist: {scope_root}")
-        
+
         # 2. Check Folders Creation
         for folder in plan.folders_to_create:
             f_path = Path(folder).resolve()
             # Must be within scope
             if not self._is_subpath(f_path, scope_root):
-                 issues.append(f"Folder creation outside scope: {f_path}")
+                issues.append(f"Folder creation outside scope: {f_path}")
             # Must not be system path
             if self._is_protected(f_path):
                 issues.append(f"Cannot create folder in protected path: {f_path}")
@@ -44,7 +46,7 @@ class SafetyValidator:
 
         return SafetyValidationResult(is_safe=len(issues) == 0, issues=issues)
 
-    def _validate_action(self, action: PlanAction, scope_root: Path) -> List[str]:
+    def _validate_action(self, action: PlanAction, scope_root: Path) -> list[str]:
         issues = []
         source_path = Path(action.source_path).resolve() if action.source_path else None
         dest_path = Path(action.destination_path).resolve() if action.destination_path else None
@@ -61,14 +63,14 @@ class SafetyValidator:
         # Check Destination
         if dest_path:
             if not self._is_subpath(dest_path, scope_root):
-                 issues.append(f"Action destination outside scope: {dest_path}")
+                issues.append(f"Action destination outside scope: {dest_path}")
             if self._is_protected(dest_path):
-                 issues.append(f"Cannot write to protected destination: {dest_path}")
+                issues.append(f"Cannot write to protected destination: {dest_path}")
 
         # Action Constraints
         if action.type == ActionType.DELETE:
-             # Just ensures we don't delete system files (already checked above by protected check)
-             pass 
+            # Just ensures we don't delete system files (already checked above by protected check)
+            pass
 
         return issues
 

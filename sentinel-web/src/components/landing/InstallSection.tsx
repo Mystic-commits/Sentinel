@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 
 const steps = [
-    { label: 'Install', code: 'pip install sentinel-ai' },
-    { label: 'Scan', code: 'sentinel scan ~/Downloads' },
-    { label: 'Plan', code: 'sentinel plan ~/Downloads --mode organize' },
-    { label: 'Execute', code: 'sentinel apply task-abc-123' },
+    { label: 'Clone the source', code: 'git clone https://github.com/Mystic-commits/Sentinel.git' },
+    { label: 'Install the development CLI', code: 'cd Sentinel/sentinel-core && poetry install' },
+    { label: 'List available commands', code: 'poetry run sentinel --help' },
 ];
 
 export default function InstallSection() {
@@ -33,10 +32,10 @@ export default function InstallSection() {
                     className="text-center mb-14"
                 >
                     <h2 className="text-[clamp(2rem,4vw,3rem)] font-bold text-txt-primary tracking-tight mb-4">
-                        Get started in seconds
+                        Build from source
                     </h2>
                     <p className="text-[16px] text-txt-secondary max-w-xl mx-auto leading-relaxed">
-                        Four commands to go from chaos to organized.
+                        Developer preview for Python 3.11+ with Poetry.
                     </p>
                 </motion.div>
 
@@ -86,7 +85,7 @@ export default function InstallSection() {
                         Requires Python 3.11+ · Ollama for AI features
                     </p>
                     <a
-                        href="https://github.com/yourusername/sentinel"
+                        href="https://github.com/Mystic-commits/Sentinel"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-[14px] text-txt-secondary hover:text-txt-primary transition-colors"

@@ -4,28 +4,26 @@ test_planner_adapter.py
 Tests for the Adapter Pattern implementation in the Planner module.
 
 Covers:
-    1. LLMProvider interface contract – any implementor must behave correctly.
-    2. OllamaClient as a concrete Adapter – honours the interface, errors
+    1. LLMProvider interface contract - any implementor must behave correctly.
+    2. OllamaClient as a concrete Adapter - honours the interface, errors
        map correctly, health_check works.
-    3. PlannerAgent decoupling – it works with ANY LLMProvider, not just
+    3. PlannerAgent decoupling - it works with ANY LLMProvider, not just
        OllamaClient. Uses a FakeLLMProvider (test double) to prove this.
-    4. Backward compatibility – existing call sites that pass OllamaClient
+    4. Backward compatibility - existing call sites that pass OllamaClient
        to PlannerAgent still work without modification.
-    5. Error propagation – LLMProviderError family is raised uniformly.
+    5. Error propagation - LLMProviderError family is raised uniformly.
 """
 
 import json
-import pytest
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, patch
 
-from sentinel_core.planner.provider import (
-    LLMProvider,
-    LLMProviderError,
-    LLMConnectionError,
-    LLMGenerationError,
-)
+import pytest
+
+from sentinel_core.models.enums import FileType
+from sentinel_core.models.filesystem import FileMetadata, ScanResult
+from sentinel_core.models.preferences import PreferencesSchema
 from sentinel_core.planner.ollama_client import (
     OllamaClient,
     OllamaClientError,
@@ -33,15 +31,18 @@ from sentinel_core.planner.ollama_client import (
     OllamaGenerationError,
 )
 from sentinel_core.planner.planner_agent import PlannerAgent
-from sentinel_core.models.filesystem import ScanResult, FileMetadata
-from sentinel_core.models.enums import FileType
-from sentinel_core.models.preferences import PreferencesSchema
+from sentinel_core.planner.provider import (
+    LLMConnectionError,
+    LLMGenerationError,
+    LLMProvider,
+    LLMProviderError,
+)
 from sentinel_core.rules.models import RuleMatchResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers / test doubles
 # ---------------------------------------------------------------------------
+
 
 class FakeLLMProvider(LLMProvider):
     """
@@ -49,7 +50,7 @@ class FakeLLMProvider(LLMProvider):
     Does NOT talk to any network. Returns canned responses.
     """
 
-    def __init__(self, json_response: Dict[str, Any] | None = None):
+    def __init__(self, json_response: dict[str, Any] | None = None):
         self._json_response = json_response or {}
         self._generate_called_with: list[tuple] = []
         self._generate_json_called_with: list[tuple] = []
@@ -58,7 +59,7 @@ class FakeLLMProvider(LLMProvider):
         self._generate_called_with.append((prompt, model, kwargs))
         return "fake response"
 
-    def generate_json(self, prompt: str, model: str, **kwargs: Any) -> Dict[str, Any]:
+    def generate_json(self, prompt: str, model: str, **kwargs: Any) -> dict[str, Any]:
         self._generate_json_called_with.append((prompt, model, kwargs))
         if self._json_response is None:
             raise LLMGenerationError("Forced failure")
@@ -69,12 +70,12 @@ class FakeLLMProvider(LLMProvider):
 
 
 class ErrorLLMProvider(LLMProvider):
-    """A provider that always fails – for error propagation tests."""
+    """A provider that always fails - for error propagation tests."""
 
-    def generate(self, prompt: str, model: str, **kwargs: Any) -> str:
+    def generate(self, *_args: Any, **_kwargs: Any) -> str:
         raise LLMConnectionError("Cannot reach LLM service")
 
-    def generate_json(self, prompt: str, model: str, **kwargs: Any) -> Dict[str, Any]:
+    def generate_json(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
         raise LLMConnectionError("Cannot reach LLM service")
 
     def health_check(self) -> bool:
@@ -96,7 +97,7 @@ def _make_scan_result(root: str = "/tmp/test") -> ScanResult:
     return ScanResult(root_path=root, files=[file], errors=[])
 
 
-def _make_valid_plan_dict(task_id: str = "task_001", root: str = "/tmp/test") -> Dict[str, Any]:
+def _make_valid_plan_dict(task_id: str = "task_001", root: str = "/tmp/test") -> dict[str, Any]:
     """Return a dict that validates against PlanSchema."""
     return {
         "task_id": task_id,
@@ -119,6 +120,7 @@ def _make_valid_plan_dict(task_id: str = "task_001", root: str = "/tmp/test") ->
 # ---------------------------------------------------------------------------
 # 1. LLMProvider interface
 # ---------------------------------------------------------------------------
+
 
 class TestLLMProviderInterface:
     """
@@ -162,6 +164,7 @@ class TestLLMProviderInterface:
 # 2. LLMProvider error hierarchy
 # ---------------------------------------------------------------------------
 
+
 class TestLLMProviderErrors:
     """
     The error class hierarchy must be consistent so callers can catch
@@ -198,6 +201,7 @@ class TestLLMProviderErrors:
 # 3. OllamaClient implements LLMProvider
 # ---------------------------------------------------------------------------
 
+
 class TestOllamaClientImplementsProvider:
     """OllamaClient must satisfy the LLMProvider interface."""
 
@@ -220,7 +224,7 @@ class TestOllamaClientImplementsProvider:
     def test_health_check_returns_false_when_unreachable(self):
         """health_check should return False if Ollama is not running (no network call needed)."""
         client = OllamaClient(base_url="http://127.0.0.1:9999")  # nothing runs here
-        # This is a fast, purely network-level refusal – should not raise
+        # This is a fast, purely network-level refusal - should not raise
         result = client.health_check()
         assert result is False
 
@@ -238,7 +242,7 @@ class TestOllamaClientImplementsProvider:
         """generate() must accept **kwargs without TypeError (interface contract)."""
         client = OllamaClient(base_url="http://127.0.0.1:9999")
         with pytest.raises(LLMProviderError):
-            # passes temperature as kwarg – should not raise TypeError
+            # passes temperature as kwarg - should not raise TypeError
             client.generate("hello", "llama2", temperature=0.3)
 
     def test_generate_json_accepts_kwargs(self):
@@ -251,6 +255,7 @@ class TestOllamaClientImplementsProvider:
 # ---------------------------------------------------------------------------
 # 4. PlannerAgent decoupling (core Adapter Pattern test)
 # ---------------------------------------------------------------------------
+
 
 class TestPlannerAgentDecoupling:
     """
@@ -303,6 +308,7 @@ class TestPlannerAgentDecoupling:
         We verify there is no direct mention in __init__'s annotations.
         """
         import inspect
+
         sig = inspect.signature(PlannerAgent.__init__)
         param = sig.parameters.get("llm_provider")
         assert param is not None, "PlannerAgent.__init__ must have llm_provider parameter"
@@ -400,10 +406,11 @@ class TestPlannerAgentDecoupling:
 # 5. Backward compatibility
 # ---------------------------------------------------------------------------
 
+
 class TestBackwardCompatibility:
     """
     Existing code that passes OllamaClient to PlannerAgent must continue
-    to work without any modification – OllamaClient IS-A LLMProvider.
+    to work without any modification - OllamaClient IS-A LLMProvider.
     """
 
     def test_ollama_client_is_accepted_by_planner(self):
@@ -415,6 +422,7 @@ class TestBackwardCompatibility:
     def test_planner_module_exports_are_complete(self):
         """All expected names are exported from sentinel_core.planner."""
         import sentinel_core.planner as planner_pkg
+
         assert hasattr(planner_pkg, "LLMProvider")
         assert hasattr(planner_pkg, "LLMProviderError")
         assert hasattr(planner_pkg, "LLMConnectionError")
@@ -447,3 +455,9 @@ class TestBackwardCompatibility:
         client = OllamaClient()
         result = client.generate_json("test prompt", "llama2")
         assert result == payload
+
+
+@patch("sentinel_core.planner.ollama_client.httpx.Client")
+def test_ollama_ignores_ambient_proxy_config(client):
+    OllamaClient().close()
+    assert client.call_args.kwargs["trust_env"] is False

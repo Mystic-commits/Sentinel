@@ -3,148 +3,130 @@
     windows_subsystem = "windows"
 )]
 
-use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tauri::Manager;
+use serde::Serialize;
+use std::{
+    io::{BufRead, BufReader},
+    process::{Child, Command, Stdio},
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
-/// Backend process state
-struct BackendProcess {
+#[derive(Clone, Serialize)]
+struct Connection {
+    port: u16,
+    token: String,
+}
+
+#[derive(Default)]
+struct Backend {
     child: Option<Child>,
+    connection: Option<Result<Connection, String>>,
 }
 
-/// Launch Python backend server
-fn launch_backend() -> Result<Child, String> {
-    println!("🚀 Launching FastAPI backend...");
-    
-    // Detect Python command (python3 on macOS/Linux, python on Windows)
-    let python_cmd = if cfg!(target_os = "windows") {
-        "python"
+type SharedBackend = Arc<Mutex<Backend>>;
+
+#[tauri::command]
+fn desktop_connection(
+    state: tauri::State<'_, SharedBackend>,
+) -> Result<Option<Connection>, String> {
+    state.lock().unwrap().connection.clone().transpose()
+}
+
+fn launch(state: &SharedBackend) -> Result<(), String> {
+    let mut secret = [0u8; 32];
+    getrandom::fill(&mut secret).map_err(|error| error.to_string())?;
+    let token: String = secret.iter().map(|byte| format!("{byte:02x}")).collect();
+    let filename = if cfg!(windows) {
+        "sentinel-backend.exe"
     } else {
-        "python3"
+        "sentinel-backend"
     };
-    
-    // Get backend path (relative to current directory)
-    let backend_path = if cfg!(debug_assertions) {
-        // Development: relative to workspace
-        "../../sentinel-core"
-    } else {
-        // Production: bundled with app
-        "../sentinel-core"
-    };
-    
-    println!("📂 Backend path: {}", backend_path);
-    
-    let child = Command::new(python_cmd)
-        .args(&[
-            "-m",
-            "uvicorn",
-            "sentinel_core.api.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "8000",
-            "--log-level",
-            "info",
-        ])
-        .current_dir(backend_path)
+    let path = std::env::current_exe()
+        .map_err(|error| error.to_string())?
+        .with_file_name(filename);
+
+    let mut command = Command::new(path);
+    command
+        .env("SENTINEL_ACCESS_TOKEN", &token)
+        .env_remove("SENTINEL_ALLOWED_ORIGINS")
+        .env_remove("SENTINEL_API_PREFIX")
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::inherit());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+
+    let mut backend = state.lock().unwrap();
+    let mut child = command
         .spawn()
-        .map_err(|e| format!("Failed to start backend: {}", e))?;
-    
-    println!("✅ Backend process started with PID: {}", child.id());
-    Ok(child)
-}
+        .map_err(|error| format!("Could not start the bundled backend: {error}"))?;
+    let output = child.stdout.take().expect("stdout pipe was requested");
+    backend.child = Some(child);
+    drop(backend);
 
-/// Health check the backend server
-async fn wait_for_backend(max_attempts: u32) -> Result<(), String> {
-    let client = reqwest::Client::new();
-    let health_url = "http://localhost:8000/health";
-    
-    for i in 0..max_attempts {
-        println!("🏥 Health check attempt {}/{}", i + 1, max_attempts);
-        
-        match client.get(health_url).send().await {
-            Ok(response) if response.status().is_success() => {
-                println!("✅ Backend is ready!");
-                return Ok(());
-            }
-            Ok(response) => {
-                println!("⚠️  Backend responded with status: {}", response.status());
-            }
-            Err(e) => {
-                println!("⏳ Backend not ready yet: {}", e);
-            }
-        }
-        
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    }
-    
-    Err("Backend failed to start after maximum attempts".to_string())
-}
+    let mut lines = BufReader::new(output).lines();
+    let ready = lines
+        .next()
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    let port = ready
+        .as_deref()
+        .and_then(|line| line.strip_prefix("SENTINEL_READY "))
+        .and_then(|port| port.parse::<u16>().ok())
+        .filter(|port| *port > 0)
+        .ok_or("The bundled backend exited before it reported readiness")?;
+    state.lock().unwrap().connection = Some(Ok(Connection { port, token }));
 
-/// Kill backend process
-fn kill_backend(backend: &mut BackendProcess) {
-    if let Some(mut child) = backend.child.take() {
-        println!("🔪 Killing backend process (PID: {})...", child.id());
-        
-        match child.kill() {
-            Ok(_) => {
-                let _ = child.wait();
-                println!("✅ Backend process terminated");
-            }
-            Err(e) => {
-                eprintln!("❌ Failed to kill backend process: {}", e);
-            }
+    // Keep draining stdout for the lifetime of the child.
+    for line in lines {
+        if line.is_err() {
+            break;
         }
     }
+    state.lock().unwrap().connection = Some(Err("The bundled backend stopped".into()));
+    Ok(())
+}
+
+fn stop(state: &SharedBackend) {
+    let Some(mut child) = state.lock().unwrap().child.take() else {
+        return;
+    };
+    // Closing stdin requests graceful shutdown, including for the frozen child.
+    child.stdin.take();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < deadline {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 fn main() {
-    let backend = Arc::new(Mutex::new(BackendProcess { child: None }));
-    
+    let backend = SharedBackend::default();
+    let startup = backend.clone();
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_process::init())
-        .setup(move |app| {
-            let backend_clone = backend.clone();
-            let _handle = app.handle().clone(); // Handle for future use if needed
-            
-            // Launch backend on startup
-            tauri::async_runtime::spawn(async move {
-                // Start backend
-                match launch_backend() {
-                    Ok(child) => {
-                        backend_clone.lock().unwrap().child = Some(child);
-                        
-                        // Wait for backend to be ready
-                        match wait_for_backend(30).await {
-                            Ok(_) => {
-                                println!("✅ Backend ready, UI should load now");
-                            }
-                            Err(e) => {
-                                eprintln!("❌ Backend health check failed: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("❌ Failed to launch backend: {}", e);
-                    }
+        .manage(backend.clone())
+        .invoke_handler(tauri::generate_handler![desktop_connection])
+        .setup(move |_| {
+            let startup = startup.clone();
+            std::thread::spawn(move || {
+                if let Err(error) = launch(&startup) {
+                    startup.lock().unwrap().connection = Some(Err(error));
                 }
             });
-            
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(move |_app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                // Kill backend on exit
-                println!("🛑 Application exiting, cleaning up...");
-                kill_backend(&mut backend.lock().unwrap());
+        .expect("could not build Sentinel desktop")
+        .run(move |_, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                stop(&backend);
             }
         });
 }

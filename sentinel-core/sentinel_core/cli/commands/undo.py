@@ -4,11 +4,20 @@ Undo Command
 Undo previously executed operations.
 """
 
-import typer
-from typing_extensions import Annotated
+import sqlite3
+from typing import Annotated
 
+import typer
+from rich.text import Text
+
+from sentinel_core.api.config import settings
+from sentinel_core.api.file_jobs import run_file_job_sync
+from sentinel_core.api.mutation_jobs import MUTATION_TIMEOUT, undo_moves
+from sentinel_core.api.receipts import receipt_state
 from sentinel_core.executor import UndoManager
 from sentinel_core.memory.db import get_engine, get_session
+from sentinel_core.models.executor import ExecutionResult
+
 from ..console import console
 from ..ui.prompts import confirm
 
@@ -19,30 +28,57 @@ def undo_command(
 ):
     """
     Undo a previously executed task.
-    
+
     Reverses file operations from a completed task.
     Note: Delete operations cannot be undone if files were permanently removed.
     """
-    
+
     console.print(f"[info]🔄 Checking undo status for:[/] [highlight]{task_id}[/]")
-    
+
+    try:
+        state = receipt_state(task_id)
+        if state is not None:
+            if state not in ("completed", "partial"):
+                raise ValueError("Only a completed or partially completed receipt can be undone")
+            if not yes and not confirm("Restore the files from this receipt?"):
+                return
+            outcome = run_file_job_sync(
+                undo_moves,
+                task_id,
+                settings.database_url,
+                timeout=MUTATION_TIMEOUT,
+            )
+            if "error" in outcome:
+                raise ValueError(outcome["error"])
+            result = ExecutionResult.model_validate(outcome["result"])
+            if result.failed_actions or result.error_message:
+                raise ValueError(result.error_message or "Undo needs attention")
+            console.print(f"[success]Restored {result.successful_actions} files.[/]")
+            return
+    except TimeoutError as error:
+        console.print("[error]Restore timed out. Check the execution receipt before retrying.[/]")
+        raise typer.Exit(1) from error
+    except (OSError, ValueError, RuntimeError, sqlite3.Error) as error:
+        console.print(Text(str(error), style="error"))
+        raise typer.Exit(1) from error
+
     # Get database connection
     try:
         engine = get_engine()
     except Exception as e:
         console.print(f"[error]Error connecting to database:[/] {e}")
-        raise typer.Exit(1)
-    
+        raise typer.Exit(1) from e
+
     with get_session(engine) as session:
         undo_mgr = UndoManager(session)
-        
+
         # Check if task can be undone
         try:
             can_undo, reason = undo_mgr.can_undo_task(task_id)
         except Exception as e:
             console.print(f"[error]Error checking undo status:[/] {e}")
-            raise typer.Exit(1)
-        
+            raise typer.Exit(1) from e
+
         if not can_undo:
             console.print(f"\n[error]❌ Cannot undo:[/] {reason}")
             console.print("\n[info]Possible reasons:[/]")
@@ -51,26 +87,26 @@ def undo_command(
             console.print("  • Task already undone")
             console.print("  • Delete operations cannot be fully undone")
             raise typer.Exit(1)
-        
+
         # Get undo operations
         try:
             operations = undo_mgr.get_undo_operations(task_id)
         except Exception as e:
             console.print(f"[error]Error retrieving operations:[/] {e}")
-            raise typer.Exit(1)
-        
+            raise typer.Exit(1) from e
+
         if not operations:
             console.print("[warning]No operations to undo[/]")
             return
-        
+
         # Show preview
-        console.print(f"\n[info]📋 Undo Preview:[/]")
+        console.print("\n[info]📋 Undo Preview:[/]")
         console.print(f"  Total operations: [count]{len(operations)}[/count]\n")
-        
+
         can_undo_count = 0
         cannot_undo_count = 0
-        
-        for i, op in enumerate(operations[:10], 1):  # Show first 10
+
+        for _i, op in enumerate(operations[:10], 1):  # Show first 10
             if op.can_undo:
                 can_undo_count += 1
                 console.print(
@@ -80,47 +116,46 @@ def undo_command(
             else:
                 cannot_undo_count += 1
                 console.print(
-                    f"  [error]✗[/] {op.action_type.value}: "
-                    f"{op.undo_reason or 'Cannot undo'}"
+                    f"  [error]✗[/] {op.action_type.value}: " f"{op.undo_reason or 'Cannot undo'}"
                 )
-        
+
         if len(operations) > 10:
             remaining = len(operations) - 10
             console.print(f"\n  [muted]... and {remaining} more operations[/]")
-        
+
         # Summary
-        console.print(f"\n[info]Summary:[/]")
+        console.print("\n[info]Summary:[/]")
         console.print(f"  Can undo: [success]{can_undo_count}[/]")
         if cannot_undo_count > 0:
             console.print(f"  Cannot undo: [warning]{cannot_undo_count}[/]")
-        
+
         # Confirm
         if not yes:
             console.print()
             if not confirm("Proceed with undo?"):
                 console.print("[warning]❌ Aborted[/]")
                 raise typer.Exit(0)
-        
+
         # Perform undo
-        console.print(f"\n[info]⚙️  Undoing operations...[/]")
-        
+        console.print("\n[info]⚙️  Undoing operations...[/]")
+
         try:
             result = undo_mgr.undo_task(task_id)
         except Exception as e:
             console.print(f"[error]Error during undo:[/] {e}")
-            raise typer.Exit(1)
-        
+            raise typer.Exit(1) from e
+
         # Show results
         console.print()
         if result.failed_actions > 0:
-            console.print(f"[warning]⚠ Partial undo completed[/]")
+            console.print("[warning]⚠ Partial undo completed[/]")
             console.print(f"  Success: [success]{result.successful_actions}[/]")
             console.print(f"  Failed: [error]{result.failed_actions}[/]")
-            
+
             if result.error_message:
                 console.print(f"\n[error]Error details:[/] {result.error_message}")
         else:
-            console.print(f"[success]✓ Undo complete![/]")
+            console.print("[success]✓ Undo complete![/]")
             console.print(f"  Reversed {result.successful_actions} operations")
-        
+
         console.print(f"\n[muted]Task {task_id} has been undone[/]")

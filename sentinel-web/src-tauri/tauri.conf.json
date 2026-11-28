@@ -3,8 +3,8 @@
     "version": "0.1.0",
     "identifier": "com.sentinel.app",
     "build": {
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build && npm run export",
+        "beforeDevCommand": "npm run desktop:backend && npm run dev",
+        "beforeBuildCommand": "npm run desktop:backend && npm run build",
         "devUrl": "http://localhost:3000",
         "frontendDist": "../out"
     },
@@ -20,18 +20,14 @@
                 "transparent": false,
                 "alwaysOnTop": false,
                 "center": true,
-                "minWidth": 1024,
-                "minHeight": 768,
-                "skipTaskbar": false
+                "minWidth": 380,
+                "minHeight": 520,
+                "skipTaskbar": false,
+                "url": "dashboard"
             }
         ],
         "security": {
-            "csp": "default-src 'self'; connect-src 'self' http://localhost:8000 ws://localhost:8000; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
-        },
-        "trayIcon": {
-            "iconPath": "icons/tray-icon.png",
-            "iconAsTemplate": true,
-            "menuOnLeftClick": false
+            "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'"
         }
     },
     "bundle": {
@@ -45,14 +41,16 @@
             "icons/icon.ico"
         ],
         "resources": [],
-        "externalBin": [],
-        "copyright": "Copyright © 2026 Sentinel",
+        "externalBin": [
+            "binaries/sentinel-backend"
+        ],
+        "copyright": "Copyright \u00a9 2026 Sentinel",
         "category": "Utility",
         "shortDescription": "AI-powered file organization",
         "longDescription": "Sentinel is a local-first AI agent that safely cleans and organizes your computer with intelligent file management.",
         "macOS": {
             "frameworks": [],
-            "minimumSystemVersion": "10.13",
+            "minimumSystemVersion": "12.0",
             "exceptionDomain": "",
             "signingIdentity": null,
             "entitlements": null

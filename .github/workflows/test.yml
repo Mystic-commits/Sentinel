@@ -20,15 +20,12 @@ jobs:
           python-version: "3.11"
       
       - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: python -m pip install poetry==2.3.4
       
       - name: Install dependencies
         run: |
           cd sentinel-core
           poetry install
-          poetry add --group dev ruff black mypy
       
       - name: Run Ruff
         run: |
@@ -64,16 +61,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
       
       - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: python -m pip install poetry==2.3.4
         shell: bash
       
       - name: Install dependencies
         run: |
           cd sentinel-core
           poetry install
-          poetry add --group dev pytest pytest-asyncio pytest-cov
         shell: bash
       
       - name: Run tests
@@ -101,7 +95,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: sentinel-web/package-lock.json
       
@@ -110,6 +104,10 @@ jobs:
           cd sentinel-web
           npm ci
       
+      - name: Audit locked npm dependencies
+        working-directory: sentinel-web
+        run: npm audit --audit-level=high
+
       - name: Run linter
         run: |
           cd sentinel-web
@@ -119,7 +117,6 @@ jobs:
         run: |
           cd sentinel-web
           npm run type-check
-        continue-on-error: true
       
       - name: Build
         run: |

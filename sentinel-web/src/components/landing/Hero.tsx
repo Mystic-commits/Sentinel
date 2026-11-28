@@ -1,109 +1,72 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui';
+import { useState } from 'react';
 import Link from 'next/link';
+import { ArrowDown, ArrowRight, Check, FileText, Image, RotateCcw } from 'lucide-react';
+import SiteMark from './SiteMark';
+
+const files = [
+    { name: 'May invoice.pdf', folder: 'Documents', icon: FileText },
+    { name: 'Coastline.jpg', folder: 'Photos', icon: Image },
+    { name: 'Project notes.txt', folder: 'Notes', icon: FileText },
+];
 
 export default function Hero() {
+    const [selected, setSelected] = useState([true, true, false]);
+    const [applied, setApplied] = useState(false);
+    const count = selected.filter(Boolean).length;
+
     return (
-        <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden pt-32 pb-20">
-            {/* Background effects */}
-            <div className="absolute inset-0">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.04)_0%,_transparent_50%)]" />
-                {/* Subtle grid */}
-                <div
-                    className="absolute inset-0 opacity-[0.03]"
-                    style={{
-                        backgroundImage: `linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)`,
-                        backgroundSize: '64px 64px',
-                    }}
-                />
-                {/* Glow orbs */}
-                <div className="absolute top-[-20%] left-[20%] w-[500px] h-[500px] rounded-full bg-white/[0.015] blur-[120px]" />
-                <div className="absolute bottom-[-10%] right-[10%] w-[400px] h-[400px] rounded-full bg-white/[0.01] blur-[100px]" />
-            </div>
+        <>
+            <section className="site-shell site-intro">
+                <h1>Find a place<br />for every file<span>.</span></h1>
+                <div className="site-intro-side">
+                    <p>Organize a folder with local rules or an optional AI model on your computer. Review every move before it happens, and restore eligible changes from your history.</p>
+                    <div className="site-actions">
+                        <a className="site-button" href="#sample-folder">Try the demo <ArrowDown size={16} aria-hidden /></a>
+                        <Link className="site-text-link" href="/how-it-works">How it works <ArrowRight size={16} aria-hidden /></Link>
+                    </div>
+                </div>
+            </section>
 
-            <div className="relative max-w-4xl mx-auto px-6 text-center">
-                {/* Heading */}
-                <motion.h1
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.08 }}
-                    className="text-[clamp(3rem,8vw,5.5rem)] font-bold leading-[1.05] tracking-[-0.03em] text-txt-primary mb-6"
-                >
-                    Organize your files
-                    <br />
-                    <span className="bg-gradient-to-r from-white/60 via-white/40 to-white/20 bg-clip-text text-transparent">
-                        with AI precision
-                    </span>
-                </motion.h1>
-
-                {/* Subtitle */}
-                <motion.p
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.14 }}
-                    className="text-[18px] text-txt-secondary max-w-xl mx-auto mb-10 leading-relaxed"
-                >
-                    Sentinel scans, plans, and organizes your files using local AI.
-                    Nothing ever leaves your machine.
-                </motion.p>
-
-                {/* CTAs */}
-                <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.2 }}
-                    className="flex flex-col sm:flex-row gap-3 justify-center items-center"
-                >
-                    <Link href="/download">
-                        <Button variant="primary" size="lg">
-                            Download Now
-                            <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                            </svg>
-                        </Button>
-                    </Link>
-                    <Button variant="secondary" size="lg">
-                        View on GitHub
-                    </Button>
-                </motion.div>
-
-                {/* Terminal snippet */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                    className="mt-16 inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-surface-1 border border-edge group hover:border-edge-hover transition-colors"
-                >
-                    <span className="text-txt-faint font-mono text-[14px]">$</span>
-                    <code className="text-[14px] font-mono text-txt-secondary">
-                        pip install sentinel-ai
-                    </code>
-                    <button className="text-[12px] text-txt-faint hover:text-txt-secondary transition-colors px-2 py-1 rounded-lg hover:bg-surface-2">
-                        Copy
-                    </button>
-                </motion.div>
-
-                {/* Stats bar */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.4, delay: 0.38 }}
-                    className="mt-12 flex items-center justify-center gap-8"
-                >
-                    {[
-                        { value: '100%', label: 'Local' },
-                        { value: '0', label: 'Data sent' },
-                        { value: '∞', label: 'Undoable' },
-                    ].map((stat) => (
-                        <div key={stat.label} className="text-center">
-                            <p className="text-[20px] font-semibold text-txt-primary tracking-tight">{stat.value}</p>
-                            <p className="text-[12px] text-txt-faint">{stat.label}</p>
+            <div className="site-shell">
+                <section className="product-stage" id="sample-folder" aria-labelledby="sample-title">
+                    <div className="sample-window">
+                        <header className="sample-header">
+                            <span className="sample-app"><SiteMark />Sentinel</span>
+                            <span>Interactive demo</span>
+                        </header>
+                        <div className="sample-body">
+                            <div className="sample-title">
+                                <h2 id="sample-title">Downloads</h2>
+                                <p>{applied ? 'Changes applied' : 'Review proposed moves'}</p>
+                            </div>
+                            <ul className="sample-files">
+                                {files.map(({ name, folder, icon: Icon }, index) => (
+                                    <li key={name} className={applied && selected[index] ? 'sample-file-moved' : undefined}>
+                                        <label>
+                                            <input type="checkbox" checked={selected[index]} disabled={applied}
+                                                aria-label={`Move ${name}`}
+                                                onChange={event => setSelected(values => values.map((value, i) => i === index ? event.target.checked : value))} />
+                                            <span className="sample-file"><Icon size={17} aria-hidden />{name}</span>
+                                            <span className="sample-destination">
+                                                {applied && selected[index] ? <Check size={14} aria-hidden /> : <ArrowRight size={14} aria-hidden />}
+                                                {selected[index] ? (applied ? `Moved to ${folder}` : folder) : 'Keep in Downloads'}
+                                            </span>
+                                        </label>
+                                    </li>
+                                ))}
+                            </ul>
+                            <footer className="sample-footer">
+                                <p role="status">{applied ? `${count} sample ${count === 1 ? 'file moved' : 'files moved'}` : `${count} of ${files.length} selected`}</p>
+                                <button className="site-button site-button-small" type="button" disabled={!count} onClick={() => setApplied(!applied)}>
+                                    {applied ? <>Undo moves <RotateCcw size={15} aria-hidden /></> : `Apply ${count} ${count === 1 ? 'move' : 'moves'}`}
+                                </button>
+                            </footer>
                         </div>
-                    ))}
-                </motion.div>
+                    </div>
+                </section>
             </div>
-        </section>
+        </>
     );
 }

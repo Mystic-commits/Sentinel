@@ -1,5 +1,5 @@
 """API routers module."""
 
-from . import scan, plan, preview, execute, undo, tasks, websocket
+from . import execute, plan, preview, scan, tasks, undo, websocket
 
-__all__ = ["scan", "plan", "preview", "execute", "undo", "tasks", "websocket"]
+__all__ = ["execute", "plan", "preview", "scan", "tasks", "undo", "websocket"]

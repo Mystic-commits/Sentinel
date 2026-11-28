@@ -26,7 +26,7 @@ export default function ConnectCTA() {
                     transition={{ delay: 0.1 }}
                     className="text-lg text-txt-secondary mb-10 max-w-xl mx-auto"
                 >
-                    Join thousands of users organizing their lives with Sentinel’s local-first AI.
+                    Explore Sentinel’s file organization workflow.
                 </motion.p>
                 <motion.div
                     initial={{ opacity: 0, y: 12 }}

@@ -1,114 +1,91 @@
-"""
-Plan Command
+"""Create and review a folder-scoped organization plan."""
 
-Create an AI-powered organization plan.
-"""
-
+import asyncio
 from pathlib import Path
-import typer
-from typing_extensions import Annotated
+from typing import Annotated
+from uuid import uuid4
 
-from sentinel_core.scanner import scan_directory
-# Import backend functions - gracefully handle if not available
-try:
-    from sentinel_core.planner import PlannerAgent
-    from sentinel_core.preview.preview import generate_terminal_preview
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-from ..console import console
+import typer
+from rich.table import Table
+from rich.text import Text
+
+from sentinel_core.api.limits import MAX_MODEL_FILES, MAX_SCAN_ENTRIES, MAX_SCAN_SECONDS
+from sentinel_core.cleanpc.pipeline import CleanPCPipeline
+from sentinel_core.executor import Executor
+from sentinel_core.models.planner import PlanSchema
+from sentinel_core.planner.ollama_client import OllamaClient
+from sentinel_core.planner.planner_agent import PlannerAgent
+from sentinel_core.safety import SafetyValidator
+
+from ..console import console, watch_status
+from ..saved_plans import save_plan
+
+
+def show_plan(plan: PlanSchema, selected: set[int] | None = None) -> None:
+    console.print(Text(f"Task {plan.task_id}"))
+    console.print(Text(f"Folder {plan.scope_path}"))
+    table = Table("Action", "Change", "From", "To")
+    for index, action in enumerate(plan.actions, 1):
+        if selected is None or index in selected:
+            table.add_row(
+                str(index),
+                action.type.value,
+                Text(action.source_path or ""),
+                Text(action.destination_path or ""),
+            )
+    console.print(table)
 
 
 def plan_command(
-    path: Annotated[Path, typer.Argument(help="Path to organize", exists=True)] = Path("."),
-    prompt: Annotated[str, typer.Option("--prompt", "-p", help="Custom prompt for AI")] = "",
-    save: Annotated[bool, typer.Option("--save/--no-save", help="Save plan to database")] = True,
+    path: Annotated[
+        Path, typer.Argument(help="Folder to organize", exists=True, dir_okay=True, file_okay=False)
+    ] = Path(),
+    prompt: Annotated[
+        str, typer.Option("--prompt", "-p", help="Instructions for the local AI")
+    ] = "",
+    save: Annotated[
+        bool, typer.Option("--save/--no-save", help="Save the plan for later apply")
+    ] = True,
+    rules_only: Annotated[
+        bool, typer.Option("--rules-only", help="Use local rules without Ollama")
+    ] = False,
 ):
-    """
-    Create an AI-powered organization plan.
-    
-    Scans the directory and uses AI to suggest how to organize files.
-    The plan can be reviewed and executed with 'sentinel apply'.
-    """
-    
-    # Validate path
-    if not path.exists():
-        console.print(f"[error]Error:[/] Path not found: {path}")
-        raise typer.Exit(1)
-    
-    if not path.is_dir():
-        console.print(f"[error]Error:[/] Not a directory: {path}")
-        raise typer.Exit(1)
-    
-    # Step 1: Scan
-    console.print(f"[info]📂 Scanning:[/] [path]{path.absolute()}[/path]")
-    
-    with console.status("[info]Analyzing files..."):
-        try:
-            scan_result = scan_directory(str(path.absolute()))
-        except Exception as e:
-            console.print(f"[error]Error during scan:[/] {e}")
-            raise typer.Exit(1)
-    
-    if scan_result.total_files == 0:
-        console.print("[warning]No files found to organize[/]")
-        return
-    
-    console.print(f"[success]✓ Found {scan_result.total_files} files[/]\n")
-    
-    # Check backend availability
-    if not BACKEND_AVAILABLE:
-        console.print("[warning]⚠ Planner module not fully integrated yet[/]")
-        console.print("[info]Backend integration coming soon[/]")
-        return
-    
-    # Step 2: Generate plan
-    console.print("[info]🤖 Creating organization plan with AI...[/]")
-    
-    with console.status("[info]Thinking..."):
-        try:
-            planner = PlannerAgent()
-            plan = planner.generate(scan_result, user_prompt=prompt if prompt else None)
-        except Exception as e:
-            console.print(f"[error]Error creating plan:[/] {e}")
-            raise typer.Exit(1)
-    
-    # Step 3: Show preview
-    console.print()
+    """Review a proposed plan for a single folder."""
+    if rules_only and prompt:
+        raise typer.BadParameter("Custom instructions require local AI", param_hint="--prompt")
+    if len(prompt) > 1000:
+        raise typer.BadParameter("Use at most 1,000 characters", param_hint="--prompt")
+    task_id = f"task-{uuid4()}"
+    ollama = OllamaClient()
     try:
-        preview = generate_terminal_preview(plan)
-        console.print(preview)
-    except Exception as e:
-        console.print(f"[warning]Could not generate preview:[/] {e}")
-        # Show basic info instead
-        console.print(f"[info]Plan Summary:[/]")
-        console.print(f"  Task ID: [highlight]{plan.task_id}[/]")
-        console.print(f"  Actions: [count]{len(plan.actions)}[/count]")
-    
-    # Step 4: Show summary
-    console.print(f"\n[success]✓ Plan created successfully[/]")
-    console.print(f"  Task ID: [highlight]{plan.task_id}[/]")
-    console.print(f"  Total actions: [count]{len(plan.actions)}[/count]")
-    console.print(f"  Folders to create: [count]{len(plan.folders_to_create)}[/count]")
-    
-    # Count action types
-    moves = sum(1 for a in plan.actions if a.type.value == "MOVE")
-    renames = sum(1 for a in plan.actions if a.type.value == "RENAME")
-    deletes = sum(1 for a in plan.actions if a.type.value == "DELETE")
-    
-    if moves:
-        console.print(f"  • Moves: [count]{moves}[/count]")
-    if renames:
-        console.print(f"  • Renames: [count]{renames}[/count]")
-    if deletes:
-        console.print(f"  • Deletes: [warning]{deletes}[/warning]")
-    
-    if plan.ambiguous_files:
-        console.print(f"  [warning]⚠ Ambiguous files: {len(plan.ambiguous_files)}[/]")
-        console.print(f"    [muted](AI needs your help to decide what to do)[/muted]")
-    
-    # Next steps
-    console.print(f"\n[highlight]Next steps:[/]")
-    console.print(f"  • Review plan: [path]sentinel plan {path} --verbose[/path]")
-    console.print(f"  • Execute plan: [path]sentinel apply {plan.task_id}[/path]")
-    console.print(f"  • Modify plan: [muted](Manual editing coming soon)[/muted]")
+        planner = PlannerAgent(ollama, user_prompt=prompt)
+        pipeline = CleanPCPipeline(planner, SafetyValidator(), Executor())
+        with watch_status("[info]Preparing the file plan…[/]"):
+            result = asyncio.run(
+                pipeline.scan_and_plan(
+                    task_id,
+                    target_dirs=[str(path.resolve())],
+                    scoped_moves_only=True,
+                    max_entries=MAX_SCAN_ENTRIES,
+                    max_scan_seconds=MAX_SCAN_SECONDS,
+                    max_model_files=MAX_MODEL_FILES,
+                    use_ai=not rules_only,
+                )
+            )
+        plan = result["plan"]
+        if result["summary"].get("truncated"):
+            console.print("[warning]Partial scan. The plan covers only the files reached.[/]")
+        console.print(Text(plan.summary))
+        if not plan.actions:
+            console.print("[warning]No moves or renames were proposed.[/]")
+            return
+        show_plan(plan)
+        if save:
+            save_plan(plan)
+            console.print(f"Preview saved plan: sentinel apply {task_id} --dry-run")
+            return task_id
+    except Exception as error:
+        console.print(Text(f"Could not create the plan: {error}", style="error"))
+        raise typer.Exit(1) from error
+    finally:
+        ollama.close()

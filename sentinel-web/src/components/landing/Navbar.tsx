@@ -68,9 +68,9 @@ export default function Navbar() {
                     })}
                 </div>
 
-                {/* Right actions - REMOVED as per user request */}
-                <div className="flex items-center gap-4 shrink-0 w-9">
-                    {/* Spacer to balance the logo on the left for absolute centering of nav links, or just empty */}
+                <div className="flex gap-4 text-sm md:hidden">
+                    <Link href="/download">Get Sentinel</Link>
+                    <Link href="/docs">Docs</Link>
                 </div>
             </div>
         </motion.nav>
